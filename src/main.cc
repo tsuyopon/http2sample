@@ -290,8 +290,7 @@ int readFrameLoop(SSL* ssl, std::string &host){
 		readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
 		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
 
-		// FIXME: 一時的な修正
-		if(type != 4){
+		if( type != 4 && type != 8){
 			readFrameContents(ssl, payload_length, 1);
 		}
 
@@ -325,7 +324,7 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				}
 				break;
 			case FrameType::DATA:
-				printf("=== DATA Frame Recieved ===\n");
+				printf("\n=== DATA Frame Recieved ===\n");
 				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
 				if(streamid != 0 ){
 					// TBD
@@ -371,16 +370,20 @@ int readFrameLoop(SSL* ssl, std::string &host){
 			case FrameType::SETTINGS:
 				printf("=== SETTINGS Frame Recieved ===\n");
 
-				unsigned char buf[READ_BUF_SIZE];
-				unsigned char* p;
-				p = buf;
-				getFrameContentsIntoBuffer(ssl, payload_length, reinterpret_cast<unsigned char*>(&buf));
+				getFrameContentsIntoBuffer(ssl, payload_length, p);
 
 				int setting_num;
 				setting_num = payload_length/6;
 				printf("Recieved %d settings\n", setting_num);
+
+				// SETTINGSフレームで取得した設定値があれば、表示する。
 				while(setting_num){
-					printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
+					//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
+					unsigned short identifier;
+					unsigned int value;
+					identifier = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
+					value = ( ( (p[2] & 0xFF) << 24 ) + ((p[3] & 0xFF) << 16 ) + ((p[4] & 0xFF) << 8 ) + ((p[5] & 0xFF) ));
+					printf("identifier=%d, value=%d\n", identifier, value);
 					p += 6;
 					setting_num--;
 				}
@@ -421,6 +424,11 @@ int readFrameLoop(SSL* ssl, std::string &host){
 
 			case FrameType::WINDOW_UPDATE:
 				printf("=== WINDOW_UPDATE Frame Recieved ===\n");
+				getFrameContentsIntoBuffer(ssl, payload_length, p);
+				unsigned int size_increment;;
+				size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+				printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
+				printf("window_size_increment = %d\n", size_increment);
 				break;
 
 			case FrameType::CONTINUATION:
@@ -816,7 +824,7 @@ int sendHeadersFrame(SSL *ssl, std::string host){
 //------------------------------------------------------------
 int sendGowayFrame(SSL *ssl){
 	printf("\n=== Start write GOAWAY frame\n");
-	const char goawayframe[17] = { 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	const char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
 	int writelen = sizeof(goawayframe);
 	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
 	if( writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(goawayframe)), writelen) < 0 ){
