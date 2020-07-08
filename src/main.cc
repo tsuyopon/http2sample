@@ -58,6 +58,9 @@ unsigned char* to_framedata3byte(unsigned char * &p, int &n);
 void to_frametype(unsigned char * &p, unsigned char *type);
 void to_frameflags(unsigned char * &p, unsigned char *flags);
 void to_framestreamid(unsigned char * &p, unsigned int& streamid);
+
+int sendSettingsAck(SSL *ssl);
+int sendHeadersFrame(SSL *ssl, std::string host);
 int sendGowayFrame(SSL *ssl);
 
 /*
@@ -370,8 +373,8 @@ int main(int argc, char **argv)
     //------------------------------------------------------------
     // 接続先ホスト名.
     //------------------------------------------------------------
-    //std::string host = "www.yahoo.co.jp";
-    std::string host = "www.google.com";
+    std::string host = "www.yahoo.co.jp";
+    //std::string host = "www.google.com";
     //std::string host = "www.youtube.com";
     //std::string host = "rakuten.co.jp";
     //std::string host = "www.nttdocomo.co.jp";
@@ -643,66 +646,93 @@ int main(int argc, char **argv)
 
 	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
 
-    //------------------------------------------------------------
-    // ACKの送信.
-    // ACKはSettingフレームを受け取った側が送る必要がある.
-    // ACKはSettingフレームのフラグに0x01を立ててpayloadを空にしたもの.
-    //
-    // フレームタイプは「0x04」
-    // 5バイト目にフラグ0x01を立てます。
-    //------------------------------------------------------------
-	// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty.  (sec6.5)
-    const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00 };
-    printf("=== Start write SETTINGS frame ACK flags\n");
-	writelen = BINARY_FRAME_LENGTH;
-
-	// MEMO: const unsigned char[9]は const_castで一気にunsigned char*へと変換できる。reinterpret_castは不要。
-	if( writeFrame(_ssl, const_cast<unsigned char*>(settingframeAck), writelen) < 0 ){
+    // Settingsフレームを受け取り次第、ACKの応答
+	if(sendSettingsAck(_ssl) <0){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
 		return 0;
 	}
 
-    //------------------------------------------------------------
-    // HEADERSフレームの送信.
-    //
-    // フレームタイプは「0x01」
-    // このフレームに必要なヘッダがすべて含まれていてこれでストリームを終わらせることを示すために、
-    // END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします。
-    // 具体的には5バイト目のフラグに「0x05」を立てます。
-    // ストリームIDは「0x01」を使います.
-    //
-    // ここまででヘッダフレームは「ペイロードの長さ(3バイト), 0x01, 0x05, 0x00, 0x00, 0x00, 0x01」になります.
-    //
-    //
-    // ●HTTP1.1でのセマンティクス
-    // 　　"GET / HTTP1/1"
-    // 　　"Host: nghttp2.org
-    //
-    // ●HTTP2でのセマンティクス
-    //      :method GET
-    //      :path /
-    //      :scheme https
-    //      :authority nghttp2.org
-    //
-    // 本来HTTP2はHPACKという方法で圧縮します.
-    // 今回は上記のHTTP2のセマンティクスを圧縮なしで記述します.
-    //
-    // 一つのヘッダフィールドの記述例
-    //
-    // |0|0|0|0|      0|   // 最初の4ビットは圧縮に関する情報、次の4ビットはヘッダテーブルのインデクス.(今回は圧縮しないのですべて0)
-    // |0|            7|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
-    // |:method|           // フィールドをそのままASCIIのオクテットで書く。
-    // |0|            3|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
-    // |GET|               // 値をそのままASCIIのオクテットで書く。
-    //
-    // 上記が一つのヘッダフィールドの記述例で、ヘッダーフィールドの数だけこれを繰り返す.
-    //
-    // See: https://tools.ietf.org/html/rfc7541#appendix-B
-    //------------------------------------------------------------
+	// HEADERSフレームの送信
+	if(sendHeadersFrame(_ssl, host) < 0){
+		error = get_error();
+		close_socket(_socket, _ctx, _ssl);
+		return 0;
+	}
 
-    // バイト数を変更したら配列数を変更してください、また、SSL_wirteにわたすバイト数も変更してください。
-    // フレームの先頭3byteはフレームに含まれるバイト数です。全体で74ならば、そこからヘッダフレーム9byteを引いた64(0x00, 0x00, 0x41)を指定します。
+	// メインループ
+	readFrameLoop(_ssl);
+
+	// GOAWAYフレームの送信
+	if(sendGowayFrame(_ssl) < 0){
+		error = get_error();
+		close_socket(_socket, _ctx, _ssl);
+	}
+
+    close_socket(_socket, _ctx, _ssl);
+    return 0;
+}
+//------------------------------------------------------------
+// ACKの送信.
+// ACKはSettingフレームを受け取った側が送る必要がある.
+// ACKはSettingフレームのフラグに0x01を立ててpayloadを空にしたもの.
+//
+// フレームタイプは「0x04」
+// 5バイト目にフラグ0x01を立てます。
+//------------------------------------------------------------
+// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty.  (sec6.5)
+int sendSettingsAck(SSL *ssl){
+	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	printf("=== Start write SETTINGS frame ACK flags\n");
+	int writelen = BINARY_FRAME_LENGTH;
+	// MEMO: const unsigned char[9]は const_castで一気にunsigned char*へと変換できる。reinterpret_castは不要。
+	if( writeFrame(ssl, const_cast<unsigned char*>(settingframeAck), writelen) < 0 ){
+		// TBD: errorとclose_socketは入れる
+		return -1;
+	}
+	return 0;
+}
+
+//------------------------------------------------------------
+// HEADERSフレームの送信.
+//
+// フレームタイプは「0x01」
+// このフレームに必要なヘッダがすべて含まれていてこれでストリームを終わらせることを示すために、
+// END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします。
+// 具体的には5バイト目のフラグに「0x05」を立てます。
+// ストリームIDは「0x01」を使います.
+//
+// ここまででヘッダフレームは「ペイロードの長さ(3バイト), 0x01, 0x05, 0x00, 0x00, 0x00, 0x01」になります.
+//
+//
+// ●HTTP1.1でのセマンティクス
+// 　　"GET / HTTP1/1"
+// 　　"Host: nghttp2.org
+//
+// ●HTTP2でのセマンティクス
+//      :method GET
+//      :path /
+//      :scheme https
+//      :authority nghttp2.org
+//
+// 本来HTTP2はHPACKという方法で圧縮します.
+// 今回は上記のHTTP2のセマンティクスを圧縮なしで記述します.
+//
+// 一つのヘッダフィールドの記述例
+//
+// |0|0|0|0|      0|   // 最初の4ビットは圧縮に関する情報、次の4ビットはヘッダテーブルのインデクス.(今回は圧縮しないのですべて0)
+// |0|            7|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
+// |:method|           // フィールドをそのままASCIIのオクテットで書く。
+// |0|            3|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
+// |GET|               // 値をそのままASCIIのオクテットで書く。
+//
+// 上記が一つのヘッダフィールドの記述例で、ヘッダーフィールドの数だけこれを繰り返す.
+//
+// See: https://tools.ietf.org/html/rfc7541#appendix-B
+//------------------------------------------------------------
+
+// バイト数を変更したら配列数を変更してください、また、SSL_wirteにわたすバイト数も変更してください。
+// フレームの先頭3byteはフレームに含まれるバイト数です。全体で74ならば、そこからヘッダフレーム9byteを引いた64(0x00, 0x00, 0x41)を指定します。
 //    const unsigned char headersframe[74] = {
 //        0x00, 0x00, 0x41, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01,   // ヘッダフレーム(**バイト数を変更したら上位３ビットを変更してください**)
 //        0x00,                                                   // 圧縮情報
@@ -717,6 +747,7 @@ int main(int argc, char **argv)
 //        0x00,                                                   // 圧縮情報
 //        0x0a, 0x3a, 0x61, 0x75, 0x74, 0x68, 0x6f, 0x72, 0x69, 0x74, 0x79,           // 10 :authority
 //        0x0f, 0x77, 0x77, 0x77, 0x2e, 0x79, 0x61, 0x68, 0x6f, 0x6f, 0x2e, 0x63, 0x6f, 0x2e, 0x6a, 0x70 };  // 15.www.yahoo.co.jp
+int sendHeadersFrame(SSL *ssl, std::string host){
 
     int ret_value, ret_value2, ret_value3, ret_value4, total;
     unsigned char* query1;
@@ -746,24 +777,11 @@ int main(int argc, char **argv)
 	memcpy(headersframe+offset, query4, ret_value4);
 
     printf("=== Start write HEADERS frame\n");
-	writelen = total+BINARY_FRAME_LENGTH;
-	if( writeFrame(_ssl, headersframe, writelen) < 0 ){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
+	int writelen = total+BINARY_FRAME_LENGTH;
+	if( writeFrame(ssl, headersframe, writelen) < 0 ){
+		return -1;
 	}
-
-	// メインループ
-	readFrameLoop(_ssl);
-
-	// GOAWAYフレームの送信
-	if(sendGowayFrame(_ssl) < 0){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-	}
-
-    close_socket(_socket, _ctx, _ssl);
-    return 0;
+	return 0;
 }
 
 //------------------------------------------------------------
