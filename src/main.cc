@@ -235,8 +235,9 @@ enum class FrameType {
 	CONTINUATION = 0x9
 };
 
-int readFrameLoop(SSL* ssl){
+int readFrameLoop(SSL* ssl, std::string &host){
 
+	int write_headers = 0;    // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
     int payload_length = 0;
 	unsigned char type = 0;
 	unsigned char flags = 0;
@@ -328,6 +329,7 @@ int readFrameLoop(SSL* ssl){
 				break;
 
 			case FrameType::SETTINGS:
+				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
 				printf("=== SETTINGS Frame Recieved ===\n");
 				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
 				if( payload_length % 6 != 0 ){
@@ -335,6 +337,17 @@ int readFrameLoop(SSL* ssl){
 					printf("=== Invalid Settings Frame Recieved\n");
 				}
 				printf("=== SETTINGS Frame flags===\n");
+				if(sendSettingsAck(ssl) < 0){
+					// TBD
+				}
+
+				// 初回SETTINGSフレームを受信した後に、HEADERSフレームをリクエストする
+				if(write_headers == 0){
+					if(sendHeadersFrame(ssl, host) < 0){
+						// TBD
+					}
+					write_headers = 1;
+				}
 
 				break;
 
@@ -604,7 +617,6 @@ int main(int argc, char **argv)
     //------------------------------------------------------------
     // To avoid unnecessary latency, clients are permitted to send additional frames to the server immediately after sending the client connection preface, without waiting to receive the server connection preface. (sec3.5)
     unsigned char settingframe[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00};
-
     printf("=== Start write SETTINGS frame\n");
 	writelen = BINARY_FRAME_LENGTH;
 	if( writeFrame(_ssl, settingframe, writelen) < 0 ){
@@ -613,55 +625,8 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-    //------------------------------------------------------------
-    // Settingフレームの受信.
-    //------------------------------------------------------------
-    // The server connection preface consists of a potentially empty SETTINGS frame (Section 6.5) that MUST be the first frame the server sends in the HTTP/2 connection. (sec3.5)
-    // A SETTINGS frame MUST be sent by both endpoints at the start of a connection and MAY be sent at any other time by either endpoint over the lifetime of the connection. (sec6.5)
-	// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
-
-    memset(buf, 0x00, BUF_SIZE);
-    p = buf;
-
-    printf("=== Start recv SETTINGS frame\n");
-    sleep(1);
-
-	unsigned char type;
-	unsigned char flags;
-	unsigned int streamid;
-
-	if(readFramePayload(_ssl, p, payload_length, &type, &flags, streamid) < 0){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
-	printf("Payload_length: %d\n", payload_length);
-
-   // SETTINGSでデータが存在しなければ以下に入らないはず
-	if( readFrameContents(_ssl, payload_length, 1) < 0 ){  //FIXME
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-    }
-
-	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-
-    // Settingsフレームを受け取り次第、ACKの応答
-	if(sendSettingsAck(_ssl) <0){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
-
-	// HEADERSフレームの送信
-	if(sendHeadersFrame(_ssl, host) < 0){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
-
 	// メインループ
-	readFrameLoop(_ssl);
+	readFrameLoop(_ssl, host);
 
 	// GOAWAYフレームの送信
 	if(sendGowayFrame(_ssl) < 0){
