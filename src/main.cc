@@ -155,7 +155,42 @@ int readFramePayload(SSL* ssl, unsigned char* p, int& payload_length, unsigned c
 }
 
 
-// フレームに含まれるコンテンツを読む
+// 一部の小さなフレーム用のデータでは、取得したコンテンツを解析して使います。このためのデータを取得します。
+// 大きなデータはreadFrameContentsで読み込んでください。
+int getFrameContentsIntoBuffer(SSL* ssl, int payload_length, unsigned char* retbuf){
+
+	int r = 0;
+	int ret = 0;
+	unsigned char buf[BUF_SIZE] = { 0 };
+	unsigned char* p = buf;
+	unsigned int total_read_bytes = 0;
+
+    while (payload_length > 0){
+
+        p = buf;
+        r = SSL_read(ssl, p, payload_length);
+        ret = SSL_get_error(ssl, r);
+        memcpy(retbuf+total_read_bytes, p, r);    // 読み込んんだサイズ分だけコピーする
+        switch (ret){
+            case SSL_ERROR_NONE:
+                break;
+            case SSL_ERROR_WANT_READ:
+                continue;
+            default:
+                if (r == -1){
+                    printf("Error Occured: payload contents SSL_read");
+                    return ret;
+                }
+        }
+
+        total_read_bytes += r;
+        payload_length -= r;
+    }
+    return ret;
+}
+
+// フレームに含まれるコンテンツを読む。主にDATAやHEADERSなどの大きいデータ用途
+// 現状skipしかしませんが。。。
 int readFrameContents(SSL* ssl, int &payload_length, int print){
 
 	int r = 0;
@@ -235,6 +270,7 @@ enum class FrameType {
 	CONTINUATION = 0x9
 };
 
+// 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 int readFrameLoop(SSL* ssl, std::string &host){
 
 	int write_headers = 0;    // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
@@ -253,7 +289,11 @@ int readFrameLoop(SSL* ssl, std::string &host){
 		printf("\n\nreadFrameLoop: loop start\n");
 		readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
 		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
-		readFrameContents(ssl, payload_length, 1);
+
+		// FIXME: 一時的な修正
+		if(type != 4){
+			readFrameContents(ssl, payload_length, 1);
+		}
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -329,13 +369,31 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				break;
 
 			case FrameType::SETTINGS:
-				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
 				printf("=== SETTINGS Frame Recieved ===\n");
+
+				unsigned char buf[READ_BUF_SIZE];
+				unsigned char* p;
+				p = buf;
+				getFrameContentsIntoBuffer(ssl, payload_length, reinterpret_cast<unsigned char*>(&buf));
+
+				int setting_num;
+				setting_num = payload_length/6;
+				printf("Recieved %d settings\n", setting_num);
+				while(setting_num){
+					printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
+					p += 6;
+					setting_num--;
+				}
+
+				// SETTINGSフレームには設定が0なら0octet、設定が1つなら6octet、2つなら12octetと6の倍数の値になることが保証されています。
 				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
 				if( payload_length % 6 != 0 ){
-					// TBD
-					printf("=== Invalid Settings Frame Recieved\n");
+					printf("=== [ERROR] Invalid Settings Frame Recieved\n");
+					return -1;
 				}
+
+				// SETTINGSフレームへの応答
+				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
 				printf("=== SETTINGS Frame flags===\n");
 				if(sendSettingsAck(ssl) < 0){
 					// TBD
