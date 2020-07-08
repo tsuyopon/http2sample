@@ -327,8 +327,9 @@ int readFrameLoop(SSL* ssl){
 			case FrameType::SETTINGS:
 				printf("=== SETTINGS Frame Recieved ===\n");
 				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-				if( payload_length != 6 ){
+				if( payload_length % 6 != 0 ){
 					// TBD
+					printf("=== Invalid Settings Frame Recieved\n");
 				}
 				printf("=== SETTINGS Frame flags===\n");
 
@@ -362,7 +363,6 @@ int readFrameLoop(SSL* ssl){
 	return 0;  // FIXME
 
 }
-
 
 int main(int argc, char **argv)
 {
@@ -663,8 +663,6 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
-    // サーバーからのACKの受信は下でやります..
-
     //------------------------------------------------------------
     // HEADERSフレームの送信.
     //
@@ -729,7 +727,6 @@ int main(int argc, char **argv)
     ret_value2 = createHpack(std::string(":path"),      std::string("/"), query2);
     ret_value3 = createHpack(std::string(":scheme"),    std::string("https"), query3);
     ret_value4 = createHpack(std::string(":authority"), host, query4);
-    //ret_value4 = createHpack(std::string(":authority"), std::string("www.google.com"), query4);
     total = ret_value + ret_value2 + ret_value3 + ret_value4;
 
     unsigned char* framepayload;
