@@ -58,11 +58,12 @@ unsigned char* to_framedata3byte(unsigned char * &p, int &n);
 void to_frametype(unsigned char * &p, unsigned char *type);
 void to_frameflags(unsigned char * &p, unsigned char *flags);
 void to_framestreamid(unsigned char * &p, unsigned int& streamid);
+int sendGowayFrame(SSL *ssl);
 
 /*
  *  HTTP/2 フレーム仕様: https://tools.ietf.org/html/rfc7540#section-4
  *  length(24) + type(8) + Flags(8) + R(1) + StreamID(31)
- *  (lengthにはフレームペイロード自体の9byteは含まれない)
+ *  (lengthにはフレームペイロード自体の9byteは含まれないことに注意すること)
  */
 // FIXME: StreamIDは31なのにintで定義してる
 unsigned char* createFramePayload (int length, char type, char flags, int streamid){
@@ -185,7 +186,7 @@ int readFrameContents(SSL* ssl, int &payload_length, int print){
 
         payload_length -= r;
 
-        printf("rest payload_length = %d\n", payload_length);
+        printf("Rest payload_length = %d\n", payload_length);
         if(print) printf("%s", p);
     }
     return ret;
@@ -248,46 +249,115 @@ int readFrameLoop(SSL* ssl){
 		printf("\n\nreadFrameLoop: loop start\n");
 		readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
 		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
-		readFrameContents(ssl, payload_length, 0);
+		readFrameContents(ssl, payload_length, 1);
 
-//		switch(type){
-//			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
-//			case PING:
-//				// streamidが0以外ならばPROTOCOL_ERROR
-//				// 受信データが8byte以外ならば、FRAME_SIZE_ERROR
-//				break;
-//			case DATA:
-//				
-//			case HEADERS:
-//
-//			case PRIORITY:
-//				/* do nothing */
-//				// フレームだけ読み飛ばす
-//				break;
-//
-//			case RST_STREAM:
-//				break;
-//
-//			case SETTINGS:
-//				break;
-//
-//			case PUSH_PROMISE:
-//				/* do nothing */
-//				// フレームだけ読み飛ばす
-//				break;
-//
-//			case GOAWAY:
-//				break;
-//
-//			case WINDOW_UPDATE:
-//				break;
-//
-//			case CONTINUATION::
-//				break;
-//
-//			/* unknown?? */
-//
-//		}
+		switch(static_cast<FrameType>(type)){
+			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
+			case FrameType::PING:
+				printf("=== PING Frame Recieved ===\n");
+
+				// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
+				if(streamid != 0 ){
+					// TBD
+				}
+
+				// Receipt of a PING frame with a length field value other than 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.7)
+				if( payload_length != 8 ){
+					// TBD
+				}
+
+				// RESPONSE PING ACK
+				unsigned char* headersframe;
+				unsigned char* framepayload;
+				int writelen;
+				framepayload = createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), 0x1 /* ACK */, 0 /*streamid*/);
+				headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(BINARY_FRAME_LENGTH + 8)));
+				memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
+				memset(headersframe+BINARY_FRAME_LENGTH, 0, 8);
+				writelen = BINARY_FRAME_LENGTH+8;
+				if( writeFrame(ssl, headersframe, writelen) < 0 ){
+					// FIXME: errorとclose_socketへの対応が必要
+					return -1;
+				}
+				break;
+			case FrameType::DATA:
+				printf("=== DATA Frame Recieved ===\n");
+				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
+				if(streamid != 0 ){
+					// TBD
+				}
+
+				// END_STREAM
+				if( flags & 0x1 ){
+					 printf("*** END_STREAM Recieved\n");
+					return 0;
+				}
+
+				break;
+				
+			case FrameType::HEADERS:
+				printf("=== HEADERS Frame Recieved ===\n");
+				if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
+				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
+				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
+				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
+
+				break;
+
+			case FrameType::PRIORITY:
+				printf("=== PRIORITY Frame Recieved ===\n");
+				/* do nothing */
+				// フレームだけ読み飛ばす
+				break;
+
+			case FrameType::RST_STREAM:
+				printf("=== RST_STREAM Frame Recieved ===\n");
+
+				// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
+				if( streamid != 0 ){
+					// TBD
+				}
+
+				// A RST_STREAM frame with a length other than 4 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.4)
+				if( payload_length != 4 ){
+					// TBD
+				}
+				break;
+
+			case FrameType::SETTINGS:
+				printf("=== SETTINGS Frame Recieved ===\n");
+				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+				if( payload_length != 6 ){
+					// TBD
+				}
+				printf("=== SETTINGS Frame flags===\n");
+
+				break;
+
+			case FrameType::PUSH_PROMISE:
+				printf("=== PUSH_PROMISE Frame Recieved ===\n");
+				/* do nothing */
+				// フレームだけ読み飛ばす
+				break;
+
+			case FrameType::GOAWAY:
+				printf("=== GOAWAY Frame Recieved ===\n");
+				break;
+
+			case FrameType::WINDOW_UPDATE:
+				printf("=== WINDOW_UPDATE Frame Recieved ===\n");
+				break;
+
+			case FrameType::CONTINUATION:
+				printf("=== CONTINUATION Frame Recieved ===\n");
+				break;
+
+			/* how to handle unknown frame type */
+			default:
+				printf("=== UNKNOWN Frame Recieved ===\n");
+				break;
+
+		}
 	}
 	return 0;  // FIXME
 
@@ -331,6 +401,7 @@ int main(int argc, char **argv)
     SSL_load_error_strings();
 
     // グローバルコンテキスト初期化.
+    // Implementations of HTTP/2 MUST use TLS version 1.2 [TLS12] or higher for HTTP/2 over TLS. (sec9.2)
     const SSL_METHOD *meth = TLSv1_2_method();   // TLS_method()にしたらmaster_secretが取得できなくなった。。。
     _ctx = SSL_CTX_new(meth);
 
@@ -685,104 +756,35 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	// メインループ
 	readFrameLoop(_ssl);
 
-    //------------------------------------------------------------
-    // HEADERSフレームの受信.
-    //------------------------------------------------------------
-
-    // まずはヘッダフレームを受信してpayloadのlengthを取得する。
-    printf("=== Start recv HEADERS frame\n");
-    while (1){
-
-        memset(buf, 0x00, BINARY_FRAME_LENGTH);
-        p = buf;
-
-		if(readFramePayload(_ssl, p, payload_length, &type, &flags, streamid) < 0){
-			error = get_error();
-			close_socket(_socket, _ctx, _ssl);
-			return 0;
-		}
-		printf("Payload_length: %d\n", payload_length);
-		printf("AAAAAAAAA:type: %02x\n", type);
-		printf("AAAAAAAAA:flags: %02x\n", flags);
-
-//        if (r == 0) continue;
-
-        // ACKが返ってくる場合があるのでACKなら無視して次を読む。
-        if ( payload_length == 0 && type == 4 /*settings*/ && flags == 1 && streamid == 0){
-            printf("===== Received Ack Ignored\n");
-            continue;
-        } else if (payload_length == 0){
-            printf("===== payload_length==0 continue\n");
-            continue;
-		} else{
-
-            printf("===== Start recv payload length: type=%d\n", type);
-            if (type != 1){
-				printf("read payload_length=%d\n", payload_length);
-
-				if( readFrameContents(_ssl, payload_length, 1) < 0 ){
-					error = get_error();
-					close_socket(_socket, _ctx, _ssl);
-					return 0;
-				}
-                continue;
-            } else {
-				printf("===== Start read HEADERS frame payload\n");
-				if( readFrameContents(_ssl, payload_length, 0) < 0 ){
-					error = get_error();
-					close_socket(_socket, _ctx, _ssl);
-					return 0;
-				}
-				break;
-			}
-        }
-    }
-
-    //------------------------------------------------------------
-    // DATAフレームの受信.
-    //------------------------------------------------------------
-
-    // まずはヘッダフレームを受信してpayloadのlengthを取得する。
-    printf("=== Start read DATA frame\n");
-	memset(buf, 0x00, BUF_SIZE);
-	p = buf;
-	if(readFramePayload(_ssl, p, payload_length, &type, &flags, streamid) < 0){
+	// GOAWAYフレームの送信
+	if(sendGowayFrame(_ssl) < 0){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
-	printf("Received FramePayloadSize: %d\n", payload_length);
-
-	// 次にpayloadを受信する。
-	int debug = 1;
-	if( readFrameContents(_ssl, payload_length, debug) < 0 ){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
-
-    //------------------------------------------------------------
-    // GOAWAYの送信.
-    //
-    // これ以上データを送受信しない場合はGOAWAYフレームを送信します.
-    // フレームタイプは「0x07」
-    // ストリームIDは「0x00」(コネクション全体に適用するため)
-    //------------------------------------------------------------
-    const char goawayframe[17] = { 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
-
-    printf("\n=== Start write GOAWAY frame\n");
-	writelen = sizeof(goawayframe);
-	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
-	if( writeFrame(_ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(goawayframe)), writelen) < 0 ){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
 	}
 
     close_socket(_socket, _ctx, _ssl);
     return 0;
+}
+
+//------------------------------------------------------------
+// GOAWAYの送信.
+//
+// これ以上データを送受信しない場合はGOAWAYフレームを送信します.
+// フレームタイプは「0x07」
+// ストリームIDは「0x00」(コネクション全体に適用するため)
+//------------------------------------------------------------
+int sendGowayFrame(SSL *ssl){
+	printf("\n=== Start write GOAWAY frame\n");
+	const char goawayframe[17] = { 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	int writelen = sizeof(goawayframe);
+	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
+	if( writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(goawayframe)), writelen) < 0 ){
+		return -1;
+	}
+	return 0;
 }
 
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl){
@@ -802,7 +804,6 @@ int get_error(){
     return errno;
 }
 
-// 
 unsigned char* to_framedata3byte(unsigned char * &p, int &n){
 	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
     u_char buf[4] = {0};      // bufを4byte初期化
