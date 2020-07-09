@@ -433,6 +433,10 @@ int readFrameLoop(SSL* ssl, std::string &host){
 
 			case FrameType::CONTINUATION:
 				printf("=== CONTINUATION Frame Recieved ===\n");
+				if(streamid == 0 ){
+					printf("Invalid CONTINUATION Frame Recieved\n");
+					// TBD
+				}
 				break;
 
 			/* how to handle unknown frame type */
@@ -452,8 +456,8 @@ int main(int argc, char **argv)
     //------------------------------------------------------------
     // 接続先ホスト名.
     //------------------------------------------------------------
-    std::string host = "www.yahoo.co.jp";
-    //std::string host = "www.google.com";
+    //std::string host = "www.yahoo.co.jp";
+    std::string host = "www.google.com";
     //std::string host = "www.youtube.com";
     //std::string host = "rakuten.co.jp";
     //std::string host = "www.nttdocomo.co.jp";
@@ -528,6 +532,9 @@ int main(int argc, char **argv)
     //------------------------------------------------------------
     // HTTP/2 over TLS uses the "h2" protocol identifier.  The "h2c" protocol identifier MUST NOT be sent by a client or selected by a server(sec3.3)
     SSL_set_alpn_protos(_ssl, protos, protos_len);
+
+	// HTTP/2 clients MUST indicate the target domain name when negotiating TLS. (sec9.2)
+	SSL_set_tlsext_host_name(_ssl, host.c_str());
 
     // SSL接続.
     if (SSL_connect(_ssl) <= 0){
