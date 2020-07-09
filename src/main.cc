@@ -290,14 +290,11 @@ int readFrameLoop(SSL* ssl, std::string &host){
 		readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
 		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
 
-		if( type != 4 && type != 8){
-			readFrameContents(ssl, payload_length, 1);
-		}
-
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
 			case FrameType::PING:
 				printf("=== PING Frame Recieved ===\n");
+				readFrameContents(ssl, payload_length, 1);
 
 				// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
 				if(streamid != 0 ){
@@ -327,12 +324,16 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				printf("\n=== DATA Frame Recieved ===\n");
 				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
 				if(streamid != 0 ){
+					 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
 					// TBD
 				}
 
-				// END_STREAM
+				// 本文の読み込み
+				readFrameContents(ssl, payload_length, 1);
+
+				// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
 				if( flags & 0x1 ){
-					 printf("*** END_STREAM Recieved\n");
+					 printf("\n*** END_STREAM Recieved\n");
 					return 0;
 				}
 
@@ -344,11 +345,13 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
 				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
 				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
+				readFrameContents(ssl, payload_length, 1);
 
 				break;
 
 			case FrameType::PRIORITY:
 				printf("=== PRIORITY Frame Recieved ===\n");
+				readFrameContents(ssl, payload_length, 1);
 				/* do nothing */
 				// フレームだけ読み飛ばす
 				break;
@@ -358,13 +361,17 @@ int readFrameLoop(SSL* ssl, std::string &host){
 
 				// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
 				if( streamid != 0 ){
+					printf("[ERROR] invalid RST_STREAM. PROTOCOL_ERROR");
 					// TBD
 				}
 
 				// A RST_STREAM frame with a length other than 4 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.4)
 				if( payload_length != 4 ){
+					printf("[ERROR] invalid RST_STREAM. FRAME_SIZE_ERROR");
 					// TBD
 				}
+
+				readFrameContents(ssl, payload_length, 1);
 				break;
 
 			case FrameType::SETTINGS:
@@ -414,12 +421,14 @@ int readFrameLoop(SSL* ssl, std::string &host){
 
 			case FrameType::PUSH_PROMISE:
 				printf("=== PUSH_PROMISE Frame Recieved ===\n");
+				readFrameContents(ssl, payload_length, 1);
 				/* do nothing */
 				// フレームだけ読み飛ばす
 				break;
 
 			case FrameType::GOAWAY:
 				printf("=== GOAWAY Frame Recieved ===\n");
+				readFrameContents(ssl, payload_length, 1);
 				break;
 
 			case FrameType::WINDOW_UPDATE:
@@ -437,11 +446,13 @@ int readFrameLoop(SSL* ssl, std::string &host){
 					printf("Invalid CONTINUATION Frame Recieved\n");
 					// TBD
 				}
+				readFrameContents(ssl, payload_length, 1);
 				break;
 
 			/* how to handle unknown frame type */
 			default:
 				printf("=== UNKNOWN Frame Recieved ===\n");
+				readFrameContents(ssl, payload_length, 1);
 				break;
 
 		}
