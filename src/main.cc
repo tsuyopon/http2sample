@@ -47,6 +47,7 @@ static int protos_len = 3;
 //static const uint8_t cmp_protos[] = { 0x68, 0x32, 0x2d, 0x31, 0x36 };
 //static int protos_len = 6;
 
+#define SSLKEYLOGFILE "/Users/tsuyoshi/Desktop/tls_key.log"
 #define CLIENT_CONNECTION_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
 int get_error();
@@ -586,7 +587,7 @@ int main(int argc, char **argv)
     ssize_t res;
 
     FILE *outputfile;         // 出力ストリーム
-    outputfile = fopen("/Users/tsuyoshi/Desktop/tls_key.log", "a");
+    outputfile = fopen(SSLKEYLOGFILE, "a");
 
     size_t ssl_client_r = SSL_get_client_random(_ssl, buf_raw_r, SSL3_RANDOM_SIZE);
     res = to_hex(buf_client_random, sizeof(buf_client_random), buf_raw_r, ssl_client_r);
