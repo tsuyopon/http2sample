@@ -580,9 +580,9 @@ int main(int argc, char **argv)
     // wiresharkにHTTP/2としてTLSを解読させるためにrandomとmaster_secertを出力する。デバッグをしやすくするため。
     //------------------------------------------------------------
     unsigned char buf_raw_r[SSL3_RANDOM_SIZE];
-    unsigned char buf_client_random[SSL3_RANDOM_SIZE*2+10];        // +1でいいかも
     unsigned char buf_raw_m[SSL_MAX_MASTER_KEY_LENGTH];
-    unsigned char buf_master_key[SSL_MAX_MASTER_KEY_LENGTH*2+10];  // +1でいいかも
+    unsigned char buf_client_random[SSL3_RANDOM_SIZE*2+1];
+    unsigned char buf_master_key[SSL_MAX_MASTER_KEY_LENGTH*2+1];
     ssize_t res;
 
     FILE *outputfile;         // 出力ストリーム
