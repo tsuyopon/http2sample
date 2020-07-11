@@ -21,7 +21,7 @@ $ make
 - execute
 you can specify target domain.
 ```
-$ ./http2client www.yahoo.co.jp
+$ ./http2client www.example.com
 ```
 
 # Note
