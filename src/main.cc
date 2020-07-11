@@ -28,6 +28,7 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "DebugUtils.h"
 #include "ErrorCodes.h"
 
 //#define READ_BUF_SIZE 4096
@@ -48,7 +49,6 @@ static int protos_len = 3;
 
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
-static ssize_t to_hex(unsigned char *dst, size_t dst_len, unsigned char *src, size_t src_len);
 
 // 3バイトのネットワークオーダーを4バイト整数へ変換する関数.
 unsigned char* to_framedata3byte(unsigned char * &p, int &n);
@@ -594,27 +594,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
-    //------------------------------------------------------------
-    // wiresharkにHTTP/2としてTLSを解読させるためにrandomとmaster_secertを出力する。デバッグをしやすくするため。
-    //------------------------------------------------------------
-    unsigned char buf_raw_r[SSL3_RANDOM_SIZE];
-    unsigned char buf_raw_m[SSL_MAX_MASTER_KEY_LENGTH];
-    unsigned char buf_client_random[SSL3_RANDOM_SIZE*2+1];
-    unsigned char buf_master_key[SSL_MAX_MASTER_KEY_LENGTH*2+1];
-    ssize_t res;
-
-    FILE *outputfile;         // 出力ストリーム
-    outputfile = fopen(SSLKEYLOGFILE, "a");
-
-    size_t ssl_client_r = SSL_get_client_random(_ssl, buf_raw_r, SSL3_RANDOM_SIZE);
-    res = to_hex(buf_client_random, sizeof(buf_client_random), buf_raw_r, ssl_client_r);
-    res = fprintf(outputfile, "CLIENT_RANDOM %s ", buf_client_random);
-
-    size_t ssl_client_m = SSL_SESSION_get_master_key(SSL_get_session(_ssl), buf_raw_m, SSL_MAX_MASTER_KEY_LENGTH);
-    res = to_hex(buf_master_key, sizeof(buf_master_key), buf_raw_m, ssl_client_m);
-    res = fprintf(outputfile, "%s\n", buf_master_key);
-
-    fclose(outputfile);          // ファイルをクローズ(閉じる)
+	DebugUtils::createSslKeyLogFile(_ssl, SSLKEYLOGFILE);
 
     //------------------------------------------------------------
     // これからHTTP2通信を開始する合図.
@@ -924,17 +904,4 @@ void to_framestreamid(unsigned char * &p, unsigned int& streamid){
 	printf("to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	streamid = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | (p[3]);
 	p += 4;
-}
-
-static ssize_t to_hex(unsigned char *dst, size_t dst_len, unsigned char *src, size_t src_len) {
-	ssize_t wr = 0;
-	for (size_t i = 0; i < src_len; i++) {
-//		printf("%02X", src[i]);
-		int w = snprintf((char *) dst + wr, dst_len - (size_t) wr, "%02x", src[i]);
-		if (w <= 0)
-			return -1;
-		wr += (ssize_t) w;
-	}
-//	printf("\n");
-	return wr;
 }
