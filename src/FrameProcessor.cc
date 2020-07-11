@@ -75,7 +75,11 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
 				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
 				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
+//				FrameProcessor::readFrameContents(ssl, payload_length, 1);
+
+				// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
+				getFrameContentsIntoBuffer(ssl, payload_length, p);
+				Hpack::readHpackHeaders(payload_length, p);
 
 				break;
 
@@ -514,6 +518,7 @@ int FrameProcessor::readFrameContents(SSL* ssl, int &payload_length, int print){
     }
     return ret;
 }
+
 unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, int &n){
 	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
     u_char buf[4] = {0};      // bufを4byte初期化
