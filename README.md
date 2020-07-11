@@ -2,7 +2,7 @@
 test implementation for http2 client.
 
 There are too many limitations about this source code.
-- can access only https://<domain>/ at 1 times,   can not specify any entrypoint.
+- can access only https://\<domain\>/ at 1 times,   can not specify any entrypoint.
 - completly blocking access
 - could not parse HEADER Frames
 - only handling "Literal Header Field Without Indexing".
@@ -12,9 +12,15 @@ There are too many limitations about this source code.
 require openssl-1.1.0+ to compile this source code.
 
 # Compile & Execution  
+- compile
 ```
 $ cd src/
 $ make
+```
+
+- execute
+you can specify target domain.
+```
 $ ./http2client www.yahoo.co.jp
 ```
 
