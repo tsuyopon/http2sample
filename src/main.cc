@@ -43,12 +43,6 @@ static const unsigned char protos[] = { 0x02, 0x68, 0x32 };
 static const char cmp_protos[] = { 0x68, 0x32 };
 static int protos_len = 3;
 
-//ドラフト14を使う場合
-// ALPN識別子. h2-14
-//static const uint8_t protos[] = { 0x05, 0x68, 0x32, 0x2d, 0x31, 0x36 };
-//static const uint8_t cmp_protos[] = { 0x68, 0x32, 0x2d, 0x31, 0x36 };
-//static int protos_len = 6;
-
 #define SSLKEYLOGFILE "/Users/tsuyoshi/Desktop/tls_key.log"
 #define CLIENT_CONNECTION_PREFACE "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
 
