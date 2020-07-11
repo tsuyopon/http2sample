@@ -29,6 +29,7 @@
 #include <openssl/err.h>
 
 #include "DebugUtils.h"
+#include "Hpack.h"
 #include "ErrorCodes.h"
 
 //#define READ_BUF_SIZE 4096
@@ -95,26 +96,6 @@ unsigned char* createFramePayload (int length, char type, char flags, int stream
 
 	return frame;
 }
-
-// HPACKの簡単なデータを作成する。
-// ここで対応しているのは、以下のパターンのみ。
-// しかし、headerまたはvalueが127文字を超過した際のパケットの整数表現に対応できていないという非常に簡易なもの
-// https://tools.ietf.org/html/rfc7541#section-6.2.2
-int createHpack(const std::string header, const std::string value, unsigned char* &dst){
-    unsigned char *hpack;
-    hpack = static_cast<unsigned char*>(std::malloc( 1 + 1 + header.length() + 1 + value.length()));
-    hpack[0] = 0;
-    hpack[1] = header.length();
-    memcpy(hpack+2, header.c_str(), header.length());
-    hpack[2+header.length()] = value.length();
-    memcpy(hpack+2+header.length()+1, value.c_str(), value.length());
-
-//    printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", hpack[0], hpack[1],hpack[2],hpack[3],hpack[4],hpack[5],hpack[6],hpack[7],hpack[8]);
-    dst = hpack;
-//    printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", dst[0], dst[1],dst[2],dst[3],dst[4],dst[5],dst[6],dst[7],dst[8]);
-    return 1 + 1 + header.length() + 1 + value.length();
-}
-
 
 // フレームペイロード(9byte)を読み込む関数
 int readFramePayload(SSL* ssl, unsigned char* p, int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){  // TODO: unsigned intに変更した方がいいかも
@@ -594,6 +575,7 @@ int main(int argc, char **argv)
         return 0;
     }
 
+	// wiresharkでHTTP/2パケットを解釈させるためにSSLKEYLOGFILEに暗号解読に必要な情報をwiresharkフォーマットで記載
 	DebugUtils::createSslKeyLogFile(_ssl, SSLKEYLOGFILE);
 
     //------------------------------------------------------------
@@ -807,10 +789,10 @@ int sendHeadersFrame(SSL *ssl, std::string host){
     unsigned char* query2;
     unsigned char* query3;
     unsigned char* query4;
-    ret_value  = createHpack(std::string(":method"),    std::string("GET"), query1);
-    ret_value2 = createHpack(std::string(":path"),      std::string("/"), query2);
-    ret_value3 = createHpack(std::string(":scheme"),    std::string("https"), query3);
-    ret_value4 = createHpack(std::string(":authority"), host, query4);
+    ret_value  = Hpack::createHpack(std::string(":method"),    std::string("GET"), query1);
+    ret_value2 = Hpack::createHpack(std::string(":path"),      std::string("/"), query2);
+    ret_value3 = Hpack::createHpack(std::string(":scheme"),    std::string("https"), query3);
+    ret_value4 = Hpack::createHpack(std::string(":authority"), host, query4);
     total = ret_value + ret_value2 + ret_value3 + ret_value4;
 
     unsigned char* framepayload;
