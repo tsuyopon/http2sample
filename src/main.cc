@@ -28,6 +28,8 @@
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
+#include "ErrorCodes.h"
+
 //#define READ_BUF_SIZE 4096
 //#define BUF_SIZE 4097
 #define READ_BUF_SIZE 32768
@@ -362,7 +364,7 @@ int readFrameLoop(SSL* ssl, std::string &host){
 
 				// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
 				if( streamid != 0 ){
-					printf("[ERROR] invalid RST_STREAM. PROTOCOL_ERROR");
+					printf("[ERROR] invalid RST_STREAM. This message must be PROTOCOL_ERROR. streamid=%d\n", streamid);
 					// TBD
 				}
 
@@ -372,10 +374,15 @@ int readFrameLoop(SSL* ssl, std::string &host){
 					// TBD
 				}
 
-				readFrameContents(ssl, payload_length, 1);
-				break;
+				getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
+				unsigned int error_code;
+				error_code = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+				printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
+
+				return static_cast<int>(FrameType::RST_STREAM);
 
 			case FrameType::SETTINGS:
+			{
 				printf("=== SETTINGS Frame Recieved ===\n");
 
 				getFrameContentsIntoBuffer(ssl, payload_length, p);
@@ -410,7 +417,7 @@ int readFrameLoop(SSL* ssl, std::string &host){
 					// TBD
 				}
 
-				// 初回SETTINGSフレームを受信した後に、HEADERSフレームをリクエストする
+				// 初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
 				if(write_headers == 0){
 					if(sendHeadersFrame(ssl, host) < 0){
 						// TBD
@@ -419,6 +426,7 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				}
 
 				break;
+			}
 
 			case FrameType::PUSH_PROMISE:
 				printf("=== PUSH_PROMISE Frame Recieved ===\n");
@@ -428,9 +436,18 @@ int readFrameLoop(SSL* ssl, std::string &host){
 				break;
 
 			case FrameType::GOAWAY:
+			{
 				printf("=== GOAWAY Frame Recieved ===\n");
-				readFrameContents(ssl, payload_length, 1);
-				break;
+//				readFrameContents(ssl, payload_length, 1);
+				getFrameContentsIntoBuffer(ssl, payload_length, p);
+				unsigned int last_streamid;
+				unsigned int error_code;
+				// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
+				last_streamid = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+				error_code = ( ( (p[4] & 0xFF) << 24 ) + ((p[5] & 0xFF) << 16 ) + ((p[6] & 0xFF) << 8 ) + ((p[7] & 0xFF) ));
+				printf("last_streamid = %d, error_code = %d message = %s\n", last_streamid, error_code, ErrorMessages[error_code].c_str());
+				return 0;
+			}
 
 			case FrameType::WINDOW_UPDATE:
 				printf("=== WINDOW_UPDATE Frame Recieved ===\n");
@@ -465,26 +482,32 @@ int readFrameLoop(SSL* ssl, std::string &host){
 int main(int argc, char **argv)
 {
 
-    //------------------------------------------------------------
-    // 接続先ホスト名.
-    //------------------------------------------------------------
-    //std::string host = "www.yahoo.co.jp";
-    std::string host = "www.google.com";
-    //std::string host = "www.youtube.com";
-    //std::string host = "rakuten.co.jp";
-    //std::string host = "www.nttdocomo.co.jp";
-    //std::string host = "www.nifty.com";
-    //std::string host = "www.cloudflare.com";
-    //std::string host = "www.google.co.jp";
-    //std::string host = "www.atmarkit.co.jp";
+	std::string host;
+	if(argc == 2){
+		host = argv[1];
+	} else {
+		//------------------------------------------------------------
+		// 接続先ホスト名.
+		//------------------------------------------------------------
+		//host = "www.yahoo.co.jp";
+		//host = "www.google.com";
+		//host = "www.youtube.com";
+		//host = "www.nttdocomo.co.jp";  // ３、４回に1度正しくデータが帰ってきてる
+		//host = "www.nifty.com";
+		host = "www.cloudflare.com";
+		//host = "www.google.co.jp";
+		//host = "www.atmarkit.co.jp";
 
-    //std::string host = "www3.nhk.or.jp";       // Error Occured: alpn_len
-    //std::string host = "www.amazon.co.jp";   // Error Occured: alpn_len
+		//host = "rakuten.co.jp";      // Error Occured: alpn_len
+		//host = "www3.nhk.or.jp";     // Error Occured: alpn_len
+		//host = "www.amazon.co.jp";   // Error Occured: alpn_len
 
-    //std::string host = "b.hatena.ne.jp";  // SSL_Connect error
-    //std::string host = "www.goo.ne.jp";       // HTTP/2未対応
-    //std::string host = "www.livedoor.com";    // HTTP/2未対応
-    //std::string host = "github.com";          // HTTP/2未対応
+		//host = "b.hatena.ne.jp";  // SSL_Connect error
+		//host = "www.goo.ne.jp";       // HTTP/2未対応
+		//host = "www.livedoor.com";    // HTTP/2未対応
+		//host = "github.com";          // HTTP/2未対応
+	}
+	printf("Requesting... hostname = %s\n", host.c_str());
 
     //------------------------------------------------------------
     // SSLの準備.
@@ -711,7 +734,13 @@ int main(int argc, char **argv)
 	}
 
 	// メインループ
-	readFrameLoop(_ssl, host);
+	int loop_return;
+	loop_return = readFrameLoop(_ssl, host);
+	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
+	if (ret == static_cast<int>(FrameType::RST_STREAM)){
+		printf("=== Start write SETTINGS frame\n");
+		return 0;
+	}
 
 	// GOAWAYフレームの送信
 	if(sendGowayFrame(_ssl) < 0){
