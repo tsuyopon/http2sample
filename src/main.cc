@@ -180,9 +180,6 @@ int main(int argc, char **argv)
 //    unsigned char buf[BUF_SIZE] = { 0 };
 //    unsigned char* p = buf;
     bool b = false;
-    int payload_length = 0;
-    int frame_type = 0;
-    int ret = 0;
 
 	// 本当はwriteFrameへの第３引数を一気に渡したい
     printf("=== Start write HTTP/2 Preface string\n");
@@ -280,6 +277,7 @@ int main(int argc, char **argv)
 	int loop_return;
 	loop_return = FrameProcessor::readFrameLoop(_ssl, host);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
+    int ret = 0;
 	if (ret == static_cast<int>(FrameType::RST_STREAM)){
 		printf("=== Start write SETTINGS frame\n");
 		return 0;
