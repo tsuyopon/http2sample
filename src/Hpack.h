@@ -86,7 +86,8 @@ const char static_table_def[61][2][30] = {
 class Hpack {
 public:
 	static int createHpack(const std::string header, const std::string value, unsigned char* &dst);
-	static int readHpackHeaders(int payload_length, unsigned char* p);
+	static void decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned int *payload_length, int nbit_prefix);
+	static int readHpackHeaders(unsigned int payload_length, unsigned char* p);
 	static int decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsigned int *read_bytes, unsigned int *value_length, bool *first_bit_set);
 };
 
