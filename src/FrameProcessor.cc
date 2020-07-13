@@ -3,7 +3,7 @@
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 
-	int write_headers = 0;    // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
+	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
 	unsigned char type = 0;
 	unsigned char flags = 0;
@@ -75,8 +75,6 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
 				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
 				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
-//				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-
 				// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 				getFrameContentsIntoBuffer(ssl, payload_length, p);
 				Hpack::readHpackHeaders(payload_length, p);
@@ -213,14 +211,14 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 // WRITE
 //////////////////////////
 /*
- *  HTTP/2 フレーム仕様: https://tools.ietf.org/html/rfc7540#section-4
- *  length(24) + type(8) + Flags(8) + R(1) + StreamID(31)
- *  (lengthにはフレームペイロード自体の9byteは含まれないことに注意すること)
+ *	HTTP/2 フレーム仕様: https://tools.ietf.org/html/rfc7540#section-4
+ *	length(24) + type(8) + Flags(8) + R(1) + StreamID(31)
+ *	(lengthにはフレームペイロード自体の9byteは含まれないことに注意すること)
  */
 // FIXME: StreamIDは31なのにintで定義してる
 unsigned char* FrameProcessor::createFramePayload (int length, char type, char flags, int streamid){
-    unsigned char *frame;
-    frame = static_cast<unsigned char*>(std::malloc(BINARY_FRAME_LENGTH));   // BINARY_FRAME_LENGTH = 9 byte
+	unsigned char *frame;
+	frame = static_cast<unsigned char*>(std::malloc(BINARY_FRAME_LENGTH));	 // BINARY_FRAME_LENGTH = 9 byte
 
 	// Relate: Values greater than 2^14 (16,384) MUST NOT be sent unless the receiver has set a larger value for SETTINGS_MAX_FRAME_SIZE. (sec4.1)
 
@@ -256,7 +254,7 @@ unsigned char* FrameProcessor::createFramePayload (int length, char type, char f
 // フレームタイプは「0x04」
 // 5バイト目にフラグ0x01を立てます。
 //------------------------------------------------------------
-// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty.  (sec6.5)
+// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty.	(sec6.5)
 int FrameProcessor::sendSettingsAck(SSL *ssl){
 	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00 };
 	printf("=== Start write SETTINGS frame ACK flags\n");
@@ -286,21 +284,21 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 // 　　"Host: nghttp2.org
 //
 // ●HTTP2でのセマンティクス
-//      :method GET
-//      :path /
-//      :scheme https
-//      :authority nghttp2.org
+//		:method GET
+//		:path /
+//		:scheme https
+//		:authority nghttp2.org
 //
 // 本来HTTP2はHPACKという方法で圧縮します.
 // 今回は上記のHTTP2のセマンティクスを圧縮なしで記述します.
 //
 // 一つのヘッダフィールドの記述例
 //
-// |0|0|0|0|      0|   // 最初の4ビットは圧縮に関する情報、次の4ビットはヘッダテーブルのインデクス.(今回は圧縮しないのですべて0)
-// |0|            7|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
-// |:method|           // フィールドをそのままASCIIのオクテットで書く。
-// |0|            3|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
-// |GET|               // 値をそのままASCIIのオクテットで書く。
+// |0|0|0|0|	  0|   // 最初の4ビットは圧縮に関する情報、次の4ビットはヘッダテーブルのインデクス.(今回は圧縮しないのですべて0)
+// |0|			  7|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
+// |:method|		   // フィールドをそのままASCIIのオクテットで書く。
+// |0|			  3|   // 最初の1bitは圧縮に関する情報(今回は0)、次の7bitはフィールドの長さ
+// |GET|			   // 値をそのままASCIIのオクテットで書く。
 //
 // 上記が一つのヘッダフィールドの記述例で、ヘッダーフィールドの数だけこれを繰り返す.
 //
@@ -309,35 +307,35 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 
 // バイト数を変更したら配列数を変更してください、また、SSL_wirteにわたすバイト数も変更してください。
 // フレームの先頭3byteはフレームに含まれるバイト数です。全体で74ならば、そこからヘッダフレーム9byteを引いた64(0x00, 0x00, 0x41)を指定します。
-//    const unsigned char headersframe[74] = {
-//        0x00, 0x00, 0x41, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01,   // ヘッダフレーム(**バイト数を変更したら上位３ビットを変更してください**)
-//        0x00,                                                   // 圧縮情報
-//        0x07, 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64,         // 7 :method
-//        0x03, 0x47, 0x45, 0x54,                                 // 3 GET
-//        0x00,                                                   // 圧縮情報
-//        0x05, 0x3a, 0x70, 0x61, 0x74, 0x68,                     // 5 :path
-//        0x01, 0x2f,                                             // 1 /
-//        0x00,                                                   // 圧縮情報
-//        0x07, 0x3a, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x65,         // 7 :scheme
-//        0x05, 0x68, 0x74, 0x74, 0x70, 0x73,                     // 5 https
-//        0x00,                                                   // 圧縮情報
-//        0x0a, 0x3a, 0x61, 0x75, 0x74, 0x68, 0x6f, 0x72, 0x69, 0x74, 0x79,           // 10 :authority
-//        0x0f, 0x77, 0x77, 0x77, 0x2e, 0x79, 0x61, 0x68, 0x6f, 0x6f, 0x2e, 0x63, 0x6f, 0x2e, 0x6a, 0x70 };  // 15.www.yahoo.co.jp
+//	  const unsigned char headersframe[74] = {
+//		  0x00, 0x00, 0x41, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01,   // ヘッダフレーム(**バイト数を変更したら上位３ビットを変更してください**)
+//		  0x00,													  // 圧縮情報
+//		  0x07, 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64,		  // 7 :method
+//		  0x03, 0x47, 0x45, 0x54,								  // 3 GET
+//		  0x00,													  // 圧縮情報
+//		  0x05, 0x3a, 0x70, 0x61, 0x74, 0x68,					  // 5 :path
+//		  0x01, 0x2f,											  // 1 /
+//		  0x00,													  // 圧縮情報
+//		  0x07, 0x3a, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x65,		  // 7 :scheme
+//		  0x05, 0x68, 0x74, 0x74, 0x70, 0x73,					  // 5 https
+//		  0x00,													  // 圧縮情報
+//		  0x0a, 0x3a, 0x61, 0x75, 0x74, 0x68, 0x6f, 0x72, 0x69, 0x74, 0x79,			  // 10 :authority
+//		  0x0f, 0x77, 0x77, 0x77, 0x2e, 0x79, 0x61, 0x68, 0x6f, 0x6f, 0x2e, 0x63, 0x6f, 0x2e, 0x6a, 0x70 };  // 15.www.yahoo.co.jp
 int FrameProcessor::sendHeadersFrame(SSL *ssl, std::string host){
 
-    int ret_value, ret_value2, ret_value3, ret_value4, total;
-    unsigned char* query1;
-    unsigned char* query2;
-    unsigned char* query3;
-    unsigned char* query4;
-    ret_value  = Hpack::createHpack(std::string(":method"),    std::string("GET"), query1);
-    ret_value2 = Hpack::createHpack(std::string(":path"),      std::string("/"), query2);
-    ret_value3 = Hpack::createHpack(std::string(":scheme"),    std::string("https"), query3);
-    ret_value4 = Hpack::createHpack(std::string(":authority"), host, query4);
-    total = ret_value + ret_value2 + ret_value3 + ret_value4;
+	int ret_value, ret_value2, ret_value3, ret_value4, total;
+	unsigned char* query1;
+	unsigned char* query2;
+	unsigned char* query3;
+	unsigned char* query4;
+	ret_value  = Hpack::createHpack(std::string(":method"),    std::string("GET"), query1);
+	ret_value2 = Hpack::createHpack(std::string(":path"),	   std::string("/"), query2);
+	ret_value3 = Hpack::createHpack(std::string(":scheme"),    std::string("https"), query3);
+	ret_value4 = Hpack::createHpack(std::string(":authority"), host, query4);
+	total = ret_value + ret_value2 + ret_value3 + ret_value4;
 
-    unsigned char* framepayload;
-    framepayload = createFramePayload(total, 0x01, 0x05, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
+	unsigned char* framepayload;
+	framepayload = createFramePayload(total, 0x01, 0x05, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
 
 	unsigned char* headersframe;
 	headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(total+BINARY_FRAME_LENGTH)));
@@ -352,7 +350,7 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, std::string host){
 	offset += ret_value3;
 	memcpy(headersframe+offset, query4, ret_value4);
 
-    printf("=== Start write HEADERS frame\n");
+	printf("=== Start write HEADERS frame\n");
 	int writelen = total+BINARY_FRAME_LENGTH;
 	if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
 		return -1;
@@ -384,24 +382,24 @@ int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length)
 	int r = 0;
 	int ret = 0;
 	bool b = false;
-    while (1){
+	while (1){
 
-        r = SSL_write(ssl, data, data_length);
-        ret = SSL_get_error(ssl, r);
-        switch (ret){
-            case SSL_ERROR_NONE:
-                b = true;
-                break;
-            case SSL_ERROR_WANT_WRITE:
-                continue;
-            default:
-                if (r == -1){
-                    printf("Error Occured: Preface SSL_write");
-                    return ret;
-                }
-        }
-        if (b) break;
-    }
+		r = SSL_write(ssl, data, data_length);
+		ret = SSL_get_error(ssl, r);
+		switch (ret){
+			case SSL_ERROR_NONE:
+				b = true;
+				break;
+			case SSL_ERROR_WANT_WRITE:
+				continue;
+			default:
+				if (r == -1){
+					printf("Error Occured: Preface SSL_write");
+					return ret;
+				}
+		}
+		if (b) break;
+	}
 	return ret;
 }
 
@@ -409,30 +407,30 @@ int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length)
 // READ
 //////////////////////////
 // フレームペイロード(9byte)を読み込む関数
-int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){  // TODO: unsigned intに変更した方がいいかも
+int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){	// TODO: unsigned intに変更した方がいいかも
 
 	int r = 0;
 	int ret = 0;
 	bool b = false;
-    while (1){
+	while (1){
 
-        r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
-        printf("BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
-        ret = SSL_get_error(ssl, r); 
-        switch (ret){
-            case SSL_ERROR_NONE:
-                b = true;
-                break;
-            case SSL_ERROR_WANT_READ:
-                continue;
-            default:
-                if (r == -1){
-                    printf("Error Occured: HEADER_FRAME SSL_read");
-                    return ret;  // TODO: 後で綺麗にする
-                }
-        }
-        if (b) break;
-    }
+		r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
+		printf("BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+		ret = SSL_get_error(ssl, r); 
+		switch (ret){
+			case SSL_ERROR_NONE:
+				b = true;
+				break;
+			case SSL_ERROR_WANT_READ:
+				continue;
+			default:
+				if (r == -1){
+					printf("Error Occured: HEADER_FRAME SSL_read");
+					return ret;  // TODO: 後で綺麗にする
+				}
+		}
+		if (b) break;
+	}
 
 	FrameProcessor::to_framedata3byte(p, payload_length);
 	FrameProcessor::to_frametype(p, type);
@@ -454,28 +452,28 @@ int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_le
 	unsigned char* p = buf;
 	unsigned int total_read_bytes = 0;
 
-    while (payload_length > 0){
+	while (payload_length > 0){
 
-        p = buf;
-        r = SSL_read(ssl, p, payload_length);
-        ret = SSL_get_error(ssl, r);
-        memcpy(retbuf+total_read_bytes, p, r);    // 読み込んんだサイズ分だけコピーする
-        switch (ret){
-            case SSL_ERROR_NONE:
-                break;
-            case SSL_ERROR_WANT_READ:
-                continue;
-            default:
-                if (r == -1){
-                    printf("Error Occured: payload contents SSL_read");
-                    return ret;
-                }
-        }
+		p = buf;
+		r = SSL_read(ssl, p, payload_length);
+		ret = SSL_get_error(ssl, r);
+		memcpy(retbuf+total_read_bytes, p, r);	  // 読み込んんだサイズ分だけコピーする
+		switch (ret){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_WANT_READ:
+				continue;
+			default:
+				if (r == -1){
+					printf("Error Occured: payload contents SSL_read");
+					return ret;
+				}
+		}
 
-        total_read_bytes += r;
-        payload_length -= r;
-    }
-    return ret;
+		total_read_bytes += r;
+		payload_length -= r;
+	}
+	return ret;
 }
 
 // フレームに含まれるコンテンツを読む。主にDATAやHEADERSなどの大きいデータ用途
@@ -487,10 +485,10 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 	unsigned char buf[BUF_SIZE] = { 0 };
 	unsigned char* p = buf;
 
-    while (payload_length > 0){
+	while (payload_length > 0){
 
-        memset(buf, 0x00, BUF_SIZE);
-        p = buf;
+		memset(buf, 0x00, BUF_SIZE);
+		p = buf;
 
 		// フレームで指定されたペイロード長がREAD_BUF_SIZEよりも小さい場合には、payload_lengthを指定しないと、フレームで指定されたペイロード長を超えたサイズを読み込むことになる。
 		if(payload_length > READ_BUF_SIZE) {
@@ -498,35 +496,35 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 		} else {
 			r = SSL_read(ssl, p, payload_length);
 		}
-        ret = SSL_get_error(ssl, r);
-        switch (ret){
-            case SSL_ERROR_NONE:
-                break;
-            case SSL_ERROR_WANT_READ:
-                continue;
-            default:
-                if (r == -1){
-                    printf("Error Occured: payload contents SSL_read");
-                    return ret;
-                }
-        }
+		ret = SSL_get_error(ssl, r);
+		switch (ret){
+			case SSL_ERROR_NONE:
+				break;
+			case SSL_ERROR_WANT_READ:
+				continue;
+			default:
+				if (r == -1){
+					printf("Error Occured: payload contents SSL_read");
+					return ret;
+				}
+		}
 
-        payload_length -= r;
+		payload_length -= r;
 
-        printf("Rest payload_length = %d\n", payload_length);
-        if(print) printf("%s", p);
-    }
-    return ret;
+		printf("Rest payload_length = %d\n", payload_length);
+		if(print) printf("%s", p);
+	}
+	return ret;
 }
 
 unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned int &n){
 	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
-    u_char buf[4] = {0};      // bufを4byte初期化
-    memcpy(&(buf[1]), p, 3);  // bufの2byte目から4byteめまでをコピー
-    memcpy(&n, buf, 4);       // buf領域を全てコピー
-    n = ntohl(n);             // ネットワークバイトオーダーを変換
-    p += 3;                   // 読み込んだ3byteをスキップする      // MEMO: 引数を&で参照にしないとポインタの加算が行われない。
-    return p;
+	u_char buf[4] = {0};	  // bufを4byte初期化
+	memcpy(&(buf[1]), p, 3);  // bufの2byte目から4byteめまでをコピー
+	memcpy(&n, buf, 4);		  // buf領域を全てコピー
+	n = ntohl(n);			  // ネットワークバイトオーダーを変換
+	p += 3;					  // 読み込んだ3byteをスキップする		// MEMO: 引数を&で参照にしないとポインタの加算が行われない。
+	return p;
 }
 
 // パケットからフレームタイプを取得する
@@ -537,7 +535,7 @@ void FrameProcessor::to_frametype(unsigned char * &p, unsigned char *type){
 }
 
 // パケットからフレームタイプのflagsを取得する
-void FrameProcessor::to_frameflags(unsigned char * &p, unsigned char *flags){   // to_frametypeと共通
+void FrameProcessor::to_frameflags(unsigned char * &p, unsigned char *flags){	// to_frametypeと共通
 	printf("to_frameflags: %02x\n", p[0]);
 	*flags = p[0];
 	p++;
@@ -547,7 +545,7 @@ void FrameProcessor::to_frameflags(unsigned char * &p, unsigned char *flags){   
 void FrameProcessor::to_framestreamid(unsigned char * &p, unsigned int& streamid){
 	streamid = 0;
 	// see: How to make int from char[4]? (in C)
-	//   https://stackoverflow.com/questions/17602229/how-to-make-int-from-char4-in-c/17602505
+	//	 https://stackoverflow.com/questions/17602229/how-to-make-int-from-char4-in-c/17602505
 	printf("to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	streamid = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | (p[3]);
 	p += 4;

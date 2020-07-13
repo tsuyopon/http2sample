@@ -5,18 +5,18 @@
 // しかし、headerまたはvalueが127文字を超過した際のパケットの整数表現に対応できていないという非常に簡易なもの
 // https://tools.ietf.org/html/rfc7541#section-6.2.2
 int Hpack::createHpack(const std::string header, const std::string value, unsigned char* &dst){
-    unsigned char *hpack;
-    hpack = static_cast<unsigned char*>(std::malloc( 1 + 1 + header.length() + 1 + value.length()));
-    hpack[0] = 0;
-    hpack[1] = header.length();
-    memcpy(hpack+2, header.c_str(), header.length());
-    hpack[2+header.length()] = value.length();
-    memcpy(hpack+2+header.length()+1, value.c_str(), value.length());
+	unsigned char *hpack;
+	hpack = static_cast<unsigned char*>(std::malloc( 1 + 1 + header.length() + 1 + value.length()));
+	hpack[0] = 0;
+	hpack[1] = header.length();
+	memcpy(hpack+2, header.c_str(), header.length());
+	hpack[2+header.length()] = value.length();
+	memcpy(hpack+2+header.length()+1, value.c_str(), value.length());
 
-//    printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", hpack[0], hpack[1],hpack[2],hpack[3],hpack[4],hpack[5],hpack[6],hpack[7],hpack[8]);
-    dst = hpack;
-//    printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", dst[0], dst[1],dst[2],dst[3],dst[4],dst[5],dst[6],dst[7],dst[8]);
-    return 1 + 1 + header.length() + 1 + value.length();
+//	  printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", hpack[0], hpack[1],hpack[2],hpack[3],hpack[4],hpack[5],hpack[6],hpack[7],hpack[8]);
+	dst = hpack;
+//	  printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", dst[0], dst[1],dst[2],dst[3],dst[4],dst[5],dst[6],dst[7],dst[8]);
+	return 1 + 1 + header.length() + 1 + value.length();
 }
 
 /*------------------------------------------------------------
@@ -42,7 +42,7 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 		// ヘッダ名とヘッダ値を取得する
 		p = p + 1;
 		*payload_length = *payload_length - 1;
-		printf("\tHeader Name = xxxxx\n");  // FIXME: hufman encoding
+		printf("\tHeader Name = xxxxx\n");	// FIXME: hufman encoding
 		if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
@@ -159,7 +159,6 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 	return 0;
 }
 
-
 /*------------------------------------------------------------
  * 
  * nbit_prefixを与えてHpackの整数表現されたoctet列を解析し、その値、読み込みしたoctet数、先頭ビットが立っているかどうかを判定する。
@@ -247,9 +246,9 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
 		integer = integer + ((next_octet & 127) * pow(2,m));  // 下位7bitだけ計算対象として、2^mを加算する
 		printf("%02x, integer=%d, m=%d \n", next_octet, integer, m);
-		m = m + 7;                          // 先頭ビットは計算対象外
-		p++;                                // 次のポインタを処理するために追加
-		count++;                            // 何バイト処理したか
+		m = m + 7;                           // 先頭ビットは計算対象外
+		p++;                                 // 次のポインタを処理するために追加
+		count++;                             // 何バイト処理したか
 	} while( ((next_octet & 128) == 128) );  // 先頭ビットが立っていたら継続
 
 	*read_bytes = count;
