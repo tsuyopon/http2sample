@@ -4,7 +4,7 @@
 int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 
 	int write_headers = 0;    // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
-    int payload_length = 0;
+	unsigned int payload_length = 0;
 	unsigned char type = 0;
 	unsigned char flags = 0;
 	unsigned int streamid = 0;
@@ -409,7 +409,7 @@ int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length)
 // READ
 //////////////////////////
 // フレームペイロード(9byte)を読み込む関数
-int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){  // TODO: unsigned intに変更した方がいいかも
+int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){  // TODO: unsigned intに変更した方がいいかも
 
 	int r = 0;
 	int ret = 0;
@@ -446,7 +446,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, int& payload_le
 
 // 一部の小さなフレーム用のデータでは、取得したコンテンツを解析して使います。このためのデータを取得します。
 // 大きなデータはreadFrameContentsで読み込んでください。
-int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, int payload_length, unsigned char* retbuf){
+int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* retbuf){
 
 	int r = 0;
 	int ret = 0;
@@ -480,7 +480,7 @@ int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, int payload_length, uns
 
 // フレームに含まれるコンテンツを読む。主にDATAやHEADERSなどの大きいデータ用途
 // 現状skipしかしませんが。。。
-int FrameProcessor::readFrameContents(SSL* ssl, int &payload_length, int print){
+int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, int print){
 
 	int r = 0;
 	int ret = 0;
@@ -519,7 +519,7 @@ int FrameProcessor::readFrameContents(SSL* ssl, int &payload_length, int print){
     return ret;
 }
 
-unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, int &n){
+unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned int &n){
 	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
     u_char buf[4] = {0};      // bufを4byte初期化
     memcpy(&(buf[1]), p, 3);  // bufの2byte目から4byteめまでをコピー

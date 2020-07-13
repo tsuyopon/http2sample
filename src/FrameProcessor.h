@@ -37,10 +37,10 @@ public:
 	static int sendGowayFrame(SSL *ssl);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);
 	// read
-	static int readFramePayload(SSL* ssl, unsigned char* p, int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);
-	static int getFrameContentsIntoBuffer(SSL* ssl, int payload_length, unsigned char* retbuf);
-	static int readFrameContents(SSL* ssl, int &payload_length, int print);
-	static unsigned char* to_framedata3byte(unsigned char * &p, int &n);
+	static int readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);
+	static int getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* retbuf);
+	static int readFrameContents(SSL* ssl, unsigned int &payload_length, int print);
+	static unsigned char* to_framedata3byte(unsigned char * &p, unsigned int &n);
 	static void to_frametype(unsigned char * &p, unsigned char *type);
 	static void to_frameflags(unsigned char * &p, unsigned char *flags);
 	static void to_framestreamid(unsigned char * &p, unsigned int& streamid);
