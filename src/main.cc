@@ -51,12 +51,12 @@ int main(int argc, char **argv)
 		//------------------------------------------------------------
 		// 接続先ホスト名.
 		//------------------------------------------------------------
-		//host = "www.yahoo.co.jp";
+		host = "www.yahoo.co.jp";
 		//host = "www.google.com";
 		//host = "www.youtube.com";
 		//host = "www.nttdocomo.co.jp";  // ３、４回に1度正しくデータが帰ってきてる
 		//host = "www.nifty.com";
-		host = "www.cloudflare.com";
+		//host = "www.cloudflare.com";
 		//host = "www.google.co.jp";
 		//host = "www.atmarkit.co.jp";
 

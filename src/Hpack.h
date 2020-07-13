@@ -2,6 +2,8 @@
 #define HPACK_H
 
 #include<string>
+#include<cstring>
+#include<cmath>
 
 // see: https://stackoverflow.com/questions/111928/is-there-a-printf-converter-to-print-in-binary-format
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -85,6 +87,7 @@ class Hpack {
 public:
 	static int createHpack(const std::string header, const std::string value, unsigned char* &dst);
 	static int readHpackHeaders(int payload_length, unsigned char* p);
+	static int decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsigned int *read_bytes, unsigned int *value_length, bool *first_bit_set);
 };
 
 #endif  // HPACK_H
