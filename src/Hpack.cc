@@ -19,6 +19,20 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
     return 1 + 1 + header.length() + 1 + value.length();
 }
 
+/*------------------------------------------------------------
+ * 
+ * Literal Header Field Representationの共通処理を行う。
+ * 
+ * 以下の3つの"Literal Header Field Represetation"に該当するケースでは非常に処理が類似している。
+ *    Literal Header Field with Incremental Indexing
+ *    Literal Header Field without Indexing
+ *    Literal Header Field Never Indexed
+ *
+ * 上記3つは以下の共通ロジックとなっている。
+ *    先頭にindex表現があれば、次にValue Lengthの整数表現、その後整数表現分のValueが来る
+ *    先頭にindex表現がなければ、次にName Lengthの整数表現、整数表現分のNameの値、Value Lengthの整数表現、整数表現分のValueが来る
+ * 
+ ------------------------------------------------------------*/
 void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned int *payload_length, int nbit_prefix){
 	unsigned int read_bytes = 0;
 	unsigned int value_length = 0;
@@ -61,13 +75,24 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 	}
 }
 
-// この関数はHEADERSフレーム情報が取得できているものとして呼び出すこと
-// Hpack表現に応じてポインタ加算が変わってくるので、全読み込みしておく必要がある。
+/*------------------------------------------------------------
+ * 
+ * 先頭ビットprefixをチェックして、Hpack表現の判定を行い、必要なデータ情報を読み込む
+ * (Hpack表現に応じてポインタ加算が変わってくるので、この関数を呼び出す際には全読み込みしておく必要がある)
+ *
+ * whileでHEADER区切りごとに処理が行われます。以下の表現のチェックを行う。
+ *   1. Indexed Header Field Representation
+ *   2. Literal Header Field with Incremental Indexing
+ *   3. Dynamic Table Size Update
+ *   4. Literal Header Field without Indexing
+ *   5. Literal Header Field Never Indexed
+ * 
+ ------------------------------------------------------------*/
 int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 	int key_index = 0;
 	unsigned char firstbyte;
 
-	// FIXME:
+	// FIXME: Huffman Encodingには未対応
 	while(1){
 		firstbyte = p[0];
 		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
@@ -108,7 +133,7 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 			// (1bit, 2bit, 3bit, 4bit)=(0,0,0,1)の場合は、「Literal Header Field Never Indexed」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.3
 			printf("Literal Header Field Never Indexed\n");
-			// FIXME: 動作確認未実施
+			// TODO: 動作確認未実施
 			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/);
 		} else {
 			// 存在しないはず
@@ -135,44 +160,45 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 }
 
 
-//------------------------------------------------------------
-// 1byte目だけでは整数表現を表せない場合に(2byte目以上も使う場合)、整数表現された値と整数表現の値を形成するために読み込みしたbyte数を返す関数
-//
-// take1(input): 読み込み開始をする先頭バッファの指定
-// take2(input): 最初の1byte目で表現されている数
-// take3(output): read_bytes: pから整数表現を解釈するために読み込んだバイト数
-// take4(output): value_length: 整数表現で表される値を表す。
-//
-// 以下のようにvalueのみが文字列で指定される場合には、この関数は1度だけ呼ばれる。
-// +---+---+---+---+---+---+---+---+
-// | 0 | 0 | 0 | 1 |  Index (4+)   |
-// +---+---+-----------------------+
-// | H |     Value Length (7+)     |
-// +---+---------------------------+
-// | Value String (Length octets)  |
-// +-------------------------------+
-//
-// Index Header表現の場合にもIndexは7+なので、この7bitが全て1ならば、この関数がその後の整数表現を取得するために1度呼ばれる。
-// +---+---+---+---+---+---+---+---+
-// | 1 |        Index (7+)         |
-// +---+---------------------------+
-//
-// 以下のようにキー名も文字列で指定される場合には、この関数は2度呼ばれる。
-// +---+---+---+---+---+---+---+---+
-// | 0 | 1 |           0           |
-// +---+---+-----------------------+
-// | H |     Name Length (7+)      |
-// +---+---------------------------+
-// |  Name String (Length octets)  |
-// +---+---------------------------+
-// | H |     Value Length (7+)     |
-// +---+---------------------------+
-// | Value String (Length octets)  |
-// +-------------------------------+
-//
-// decodeアルゴリズムは以下に準ずる
-// https://tools.ietf.org/html/rfc7541#section-5.1
-//------------------------------------------------------------
+/*------------------------------------------------------------
+ * 
+ * nbit_prefixを与えてHpackの整数表現されたoctet列を解析し、その値、読み込みしたoctet数、先頭ビットが立っているかどうかを判定する。
+ *
+ * @param p 読み込み開始をする先頭バッファアドレス
+ * @param nbit_prefix  1octet目で表される整数表現の長さ
+ * @param read_bytes 読み込んだバイト数の結果(output)
+ * @param value_length 整数表現で指定された値の結果(output)
+ * @param first_bit_set 渡されたpの1byte目の先頭ビットが立っているかどうかを表す。(ハフマンエンコーディングの判定に利用する)
+ *
+ * @return
+ *      指定されたnbit_prefixが全て0で満たされていた場合、整数表現は存在しない。=> 0を応答する。
+ *      指定されたnbit_prefixが全て0以外の場合には、整数表現が存在する。        => 1を応答する。
+ *
+ * @detail 
+ *
+ * [使い方]
+ *
+ * 以下のパケットを解析する場合には、
+ *   最初の1octet目の整数表現を取得するために1度目を呼ぶ。
+ *      nbit_prefixは4を指定指定し、
+ *      read_bytesは何バイト読み込まれたのかを返す。
+ *      value_lengthは整数表現としての値を返す。
+ *      first_bit_setはValue LengthやName Lengthの整数表現を取得しようとした際のHufman Encoding判定に利用する。この場合はHufman Encodingを識別するビットは無いので、意味をなさない
+ *   その後、Value Lengthの整数表現を取得するために2度目を呼ぶ
+ *      nbit_prefixは7を指定指定し、
+ *      read_bytesは何バイト読み込まれたのかを返す。
+ *      value_lengthは整数表現としての値を返す。
+ *      first_bit_setはValue LengthやName Lengthの整数表現を取得しようとした際のHufman Encoding判定に利用する。この場合はHufman Encodingを識別するビットHが存在するので、判定に利用できる。
+ *
+ * +---+---+---+---+---+---+---+---+
+ * | 0 | 0 | 0 | 1 |  Index (4+)   |
+ * +---+---+-----------------------+
+ * | H |     Value Length (7+)     |
+ * +---+---------------------------+
+ * | Value String (Length octets)  |
+ * +-------------------------------+
+ *
+ ------------------------------------------------------------*/
 int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsigned int *read_bytes, unsigned int *value_length, bool *first_bit_set){
 
 	unsigned char next_octet;
@@ -189,15 +215,19 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	if(nbit_prefix >= 6) flags |= 0x20;
 	if(nbit_prefix >= 7) flags |= 0x40;
 
+	*first_bit_set = next_octet & 0x80;
+
 	// 最初の1byte目の指定されたnbit_prefixが全て0である場合(整数表現ではない場合)
 //	printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
 	integer = next_octet & flags;
 	if( integer == 0 ){
 		*read_bytes = 1;
+		*value_length = 0;
 		return 1;   // 整数表現ではない
 	}
 
-	*first_bit_set = next_octet & 0x80;
+	// See HpackDecode Algorithm
+	// https://tools.ietf.org/html/rfc7541#section-5.1
 
 	// 最初の1byte目の指定されたnbit_prefixで整数表現が完結している。
 	if( integer < pow(2, nbit_prefix) -1 ){
