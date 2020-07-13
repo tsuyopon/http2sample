@@ -10,6 +10,10 @@ void DebugUtils::createSslKeyLogFile(SSL *ssl, const char* keylogfile){
 
     FILE *outputfile;         // 出力ストリーム
     outputfile = fopen(keylogfile, "a");
+	if(outputfile == NULL){
+		printf("DebugUtils::createSslKeyLogFile fopen error. Don't write SSLKEYLOGFILE.");
+		return;
+	}
 
     size_t ssl_client_r = SSL_get_client_random(ssl, buf_raw_r, SSL3_RANDOM_SIZE);
     res = DebugUtils::to_hex(buf_client_random, sizeof(buf_client_random), buf_raw_r, ssl_client_r);
