@@ -42,6 +42,8 @@ int Hpack::readHpackHeaders(int payload_length, unsigned char* p){
 		} else if(firstbyte & 0x40){   
 			// (1bit, 2bit) = (0, 1)の場合には、「Literal Header Field with Incremental Indexing」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.1
+			printf("Literal Header Field with Incremental Indexing\n");
+
 			unsigned int read_bytes, value_length;
 			bool first_bit_set;
 			if(decodeIntegerRepresentation(p, 6 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){  // 整数表現ではない
@@ -50,7 +52,7 @@ int Hpack::readHpackHeaders(int payload_length, unsigned char* p){
 				p = p + read_bytes;
 				payload_length = payload_length - read_bytes;
 
-				printf("Header Name = xxxxx\n");  // FIXME: hufman encoding
+				printf("\tHeader Name = xxxxx\n");  // FIXME: hufman encoding
 				if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 					printf("[ERROR] Could Not get Header Length\n");
 				} else {
@@ -63,7 +65,7 @@ int Hpack::readHpackHeaders(int payload_length, unsigned char* p){
 			} else { // 整数表現
 				// See: https://tools.ietf.org/html/rfc7541#section-6.2.1   Figure6
 				// ヘッダ名はindexから取得して、ヘッダ値を取得する
-				printf("Header Name = %s\n", static_table_def[value_length-1][0]);
+				printf("\tHeader Name = %s\n", static_table_def[value_length-1][0]);
 				p = p + read_bytes;
 				payload_length = payload_length - read_bytes;
 			}
@@ -87,6 +89,7 @@ int Hpack::readHpackHeaders(int payload_length, unsigned char* p){
 			// FIXME: 更新させる
 			p++;
 			payload_length--;
+
 		} else if(!(firstbyte & 0x10)){
 			// (1bit, 2bit, 3bit, 4bit)=(0,0,0,0)の場合は、「Literal Header Field without Indexing」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.2
@@ -95,40 +98,46 @@ int Hpack::readHpackHeaders(int payload_length, unsigned char* p){
 			key_index = firstbyte & (0x08|0x04|0x02|0x01);
 			printf("Literal Header Field without Indexing. index=%d\n", key_index);
 
-			if(key_index == 0){
+/* あとで共通化する */
+			unsigned int read_bytes, value_length;
+			bool first_bit_set;
+			if(decodeIntegerRepresentation(p, 4 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){  // 整数表現ではない
+				// See: https://tools.ietf.org/html/rfc7541#section-6.2.1   Figure7
+				// ヘッダ名とヘッダ値を取得する
+				p = p + read_bytes;
+				payload_length = payload_length - read_bytes;
 
-				// ヘッダ長の取得
-				int name_length;
-				name_length = p[1];
-
-				// ヘッダ長分のoctetを取得
-				char* name;
-				name = static_cast<char*>(malloc(name_length+1));
-				memcpy(name, &(p[2]), name_length);
-				memcpy(&(name[name_length]), &(p[2+name_length]), '\0');
-				printf("Header Name = %s\n", name);
-
-			} else if(key_index == 15){  // 下位4bitがすべて1の場合
-				unsigned int real_key_index = 0;
-				real_key_index = p[1] + 15;
-				printf("RealIndex=%d %s %s\n", real_key_index, static_table_def[real_key_index-1][0], static_table_def[real_key_index-1][1]);
-
-				unsigned int value_length = 0;
-				value_length = p[2];   //  FIXME: do not consider hufman encoding
-				printf("length %d, %d\n", value_length, p[2]);
-
-				char* value;
-				value = static_cast<char*>(malloc(value_length+1));
-				memcpy(value, &(p[3]), value_length);
-				memcpy(&(value[value_length]), &(p[2+value_length]), '\0');
-				printf("Header Name = %s\n", value);
-
-			} else {
+				printf("\tHeader Name = xxxxx\n");  // FIXME: hufman encoding
+				if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
+					printf("[ERROR] Could Not get Header Length\n");
+				} else {
+					if(first_bit_set) printf("\tHufman encoding flag is set\n");
+					p = p + read_bytes;
+					p = p + value_length;
+					payload_length = payload_length - read_bytes - value_length;
+				}
+				
+			} else { // 整数表現
+				// See: https://tools.ietf.org/html/rfc7541#section-6.2.1   Figure6
+				// ヘッダ名はindexから取得して、ヘッダ値を取得する
+				printf("\tHeader Name = %s\n", static_table_def[value_length-1][0]);
+				p = p + read_bytes;
+				payload_length = payload_length - read_bytes;
 			}
 
-			//FIXME: 正しいオフセット分増加させる必要あり
-			p++;
-			payload_length--;
+			// ヘッダ値の長さを取得する
+
+			if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
+				printf("[ERROR] Could Not get Header Length\n");
+			} else {
+				if(first_bit_set) printf("\tHufman encoding flag is set\n");
+				// FIXME: ハフマン符号の解釈
+				p = p + read_bytes;
+				p = p + value_length;
+				payload_length = payload_length - read_bytes - value_length;
+			}
+/* あとで共通化する */
+
 		} else if(!(firstbyte & 0x10)){
 			// (1bit, 2bit, 3bit, 4bit)=(0,0,0,1)の場合は、「Literal Header Field Never Indexed」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.3
