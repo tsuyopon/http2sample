@@ -1,5 +1,4 @@
-#ifndef FRAME_PROCESSOR_H
-#define FRAME_PROCESSOR_H
+#pragma once
 
 #include<string>
 #include <openssl/ssl.h>
@@ -45,5 +44,3 @@ public:
 	static void to_frameflags(unsigned char * &p, unsigned char *flags);
 	static void to_framestreamid(unsigned char * &p, unsigned int& streamid);
 };
-
-#endif  // FRAME_PROCESSOR_H

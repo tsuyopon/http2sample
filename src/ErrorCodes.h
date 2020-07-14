@@ -1,5 +1,4 @@
-#ifndef ERROR_CODES_H
-#define ERROR_CODES_H
+#pragma once
 
 // Error codes are 32-bit fields that are used in RST_STREAM and GOAWAY frames to convey the reasons for the stream or connection error. (sec7)
 enum class ErrorCodes {
@@ -36,4 +35,3 @@ const std::string ErrorMessages[256] = {
 	"HTTP_1_1_REQUIRED"
 };
 
-#endif  //ERROR_CODES_H

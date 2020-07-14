@@ -141,7 +141,7 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 
 				// SETTINGSフレームへの応答
 				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-				printf("=== SETTINGS Frame flags===\n");
+				printf("\n=== SETTINGS Frame flags===\n");
 				if(sendSettingsAck(ssl) < 0){
 					// TBD
 				}
@@ -167,7 +167,6 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 			case FrameType::GOAWAY:
 			{
 				printf("=== GOAWAY Frame Recieved ===\n");
-//				FrameProcessor::readFrameContents(ssl, payload_length, 1);
 				getFrameContentsIntoBuffer(ssl, payload_length, p);
 				unsigned int last_streamid;
 				unsigned int error_code;
@@ -246,16 +245,32 @@ unsigned char* FrameProcessor::createFramePayload (int length, char type, char f
 	return frame;
 }
 
+
+/*
+ * Settingsフレーム送信用関数。
+ * ただし、ACKを送付する場合には、FrameProcessor::sendSettingsAckを使うこと
+ */
+//int FrameProcessor::sendSettingsFrame(SSL *ssl){
+//    unsigned char settingframe[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00};
+//    printf("=== Start write SETTINGS frame\n");
+//	writelen = BINARY_FRAME_LENGTH;
+//	if( FrameProcessor::writeFrame(_ssl, settingframe, writelen) < 0 ){
+//		error = get_error();
+//		close_socket(_socket, _ctx, _ssl);
+//		return 0;
+//	}
+//}
+
 //------------------------------------------------------------
-// ACKの送信.
+// Settingsフレーム(ACKの送信)
 // ACKはSettingフレームを受け取った側が送る必要がある.
-// ACKはSettingフレームのフラグに0x01を立ててpayloadを空にしたもの.
+// ACKはSettingフレームのフラグに0x01を立ててpayloadは必ず空でなければならない、
 //
 // フレームタイプは「0x04」
 // 5バイト目にフラグ0x01を立てます。
 //------------------------------------------------------------
-// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty.	(sec6.5)
 int FrameProcessor::sendSettingsAck(SSL *ssl){
+	// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty. (sec6.5)
 	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00 };
 	printf("=== Start write SETTINGS frame ACK flags\n");
 	int writelen = BINARY_FRAME_LENGTH;
@@ -375,7 +390,6 @@ int FrameProcessor::sendGowayFrame(SSL *ssl){
 	}
 	return 0;
 }
-
 
 int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length){
 
@@ -517,6 +531,7 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 	return ret;
 }
 
+// フレーム長3byteを取得してunsigned intにコピーする
 unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned int &n){
 	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
 	u_char buf[4] = {0};	  // bufを4byte初期化

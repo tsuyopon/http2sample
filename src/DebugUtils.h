@@ -1,5 +1,4 @@
-#ifndef DEBUG_UTILS_H
-#define DEBUG_UTILS_H
+#pragma once
 
 #include <openssl/ssl.h>
 #include <openssl/err.h>
@@ -11,5 +10,3 @@ public:
 private:
 	static ssize_t to_hex(unsigned char *dst, size_t dst_len, unsigned char *src, size_t src_len);
 };
-
-#endif  // DEBUG_UTILS_H

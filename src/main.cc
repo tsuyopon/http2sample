@@ -11,8 +11,11 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <errno.h>
 #include <string>
+#include <map>
+#include <iostream>
 
 #include <sys/types.h>
 #include <sys/socket.h>
@@ -51,8 +54,8 @@ int main(int argc, char **argv)
 		//------------------------------------------------------------
 		// 接続先ホスト名.
 		//------------------------------------------------------------
-		host = "www.yahoo.co.jp";
-		//host = "www.google.com";
+		//host = "www.yahoo.co.jp";
+		host = "www.google.com";
 		//host = "www.youtube.com";
 		//host = "www.nttdocomo.co.jp";  // ３、４回に1度正しくデータが帰ってきてる
 		//host = "www.nifty.com";
@@ -264,9 +267,47 @@ int main(int argc, char **argv)
     // SETTINGS_MAX_HEADER_LIST_SIZE (0x6)   初期値は無制限
     //------------------------------------------------------------
     // To avoid unnecessary latency, clients are permitted to send additional frames to the server immediately after sending the client connection preface, without waiting to receive the server connection preface. (sec3.5)
-    unsigned char settingframe[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00};
+
+	std::map<uint16_t, uint32_t> setmap;
+	setmap[0x1] = 4096;
+	setmap[0x4] = 65535; 
+
+	writelen = BINARY_FRAME_LENGTH + setmap.size() * 6;
+	unsigned char *settingframe;
+	settingframe = static_cast<unsigned char*>(malloc(writelen));
+
+	// length
+	settingframe[0] = 0;
+	settingframe[1] = 0;
+	settingframe[2] = setmap.size()*6;  // 1byteだけでsettingは表現できる
+
+	settingframe[3] = 4;  // type
+	settingframe[4] = 0;  // flags
+
+	// streamid
+	settingframe[5] = 0;
+	settingframe[6] = 0;
+	settingframe[7] = 0;
+	settingframe[8] = 0;
+
+	// Note: C/C++ packing signed char into int
+    //    https://stackoverflow.com/questions/2437283/c-c-packing-signed-char-into-int
+	// add setting frame
+	int cnt = 0;
+	for (auto i = setmap.begin(); i != setmap.end(); ++i) {
+		// pack uint16_t
+		settingframe[9+6*cnt] = (i->first >> 8) & 0xff;
+		settingframe[10+6*cnt] = i->first & 0xff;
+
+		// pack uint32_t
+		settingframe[11+6*cnt] = (i->second >> 24) & 0xff;
+		settingframe[12+6*cnt] = (i->second >> 16) & 0xff;
+		settingframe[13+6*cnt] = (i->second >> 8) & 0xff;
+		settingframe[14+6*cnt] = i->second & 0xff;
+		cnt++;
+	}
+
     printf("=== Start write SETTINGS frame\n");
-	writelen = BINARY_FRAME_LENGTH;
 	if( FrameProcessor::writeFrame(_ssl, settingframe, writelen) < 0 ){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);

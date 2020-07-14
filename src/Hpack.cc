@@ -47,11 +47,10 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
 			if(first_bit_set) printf("\tHufman encoding flag is set\n");
-			printf("payload_length=%d, read_values=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
+			printf("\tpayload_length=%d, read_values=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
 			p = p + read_bytes;
 			p = p + value_length;
 			*payload_length = *payload_length - read_bytes - value_length;
-			printf("payload_length3: %d, read_bytes=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
 		}
 		
 	} else { // 整数表現
@@ -95,7 +94,7 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 	// FIXME: Huffman Encodingには未対応
 	while(1){
 		firstbyte = p[0];
-		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
+//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
 
 		if( firstbyte & 0x80 ){
 			// 1ビット目が1の場合には「Indexed Header Field Representation」
@@ -206,6 +205,11 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	unsigned int flags = 0;
 
 	next_octet = p[0];
+
+	// 1octet目の先頭ビットが立っていればfirst_bit_setがtrueとなる。
+	*first_bit_set = next_octet & 0x80;
+
+	// nbit_prefixに指定された値が1から7ビットに応じて必要なビットフラグをセットする
 	if(nbit_prefix >= 1) flags |= 0x01;
 	if(nbit_prefix >= 2) flags |= 0x02;
 	if(nbit_prefix >= 3) flags |= 0x04;
@@ -213,8 +217,6 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	if(nbit_prefix >= 5) flags |= 0x10;
 	if(nbit_prefix >= 6) flags |= 0x20;
 	if(nbit_prefix >= 7) flags |= 0x40;
-
-	*first_bit_set = next_octet & 0x80;
 
 	// 最初の1byte目の指定されたnbit_prefixが全て0である場合(整数表現ではない場合)
 //	printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
@@ -236,14 +238,14 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 		return 0;
 	}
 
-	// 1byte目のチェックが終わっているのでcountとポインタ増加を1進める
+	// 1byte目のチェックがこの時点で終わっているのでcountとポインタ増加を1進める
 	unsigned int count = 1;
 	p++;
 
 	// 2byte目以降を処理する
 	do {
 		next_octet = p[0];
-		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
+//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
 		integer = integer + ((next_octet & 127) * pow(2,m));  // 下位7bitだけ計算対象として、2^mを加算する
 		printf("%02x, integer=%d, m=%d \n", next_octet, integer, m);
 		m = m + 7;                           // 先頭ビットは計算対象外

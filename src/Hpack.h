@@ -1,5 +1,4 @@
-#ifndef HPACK_H
-#define HPACK_H
+#pragma once
 
 #include<string>
 #include<cstring>
@@ -29,7 +28,7 @@ const char static_table_def[61][2][30] = {
 	{":scheme", "https"},
 	{":status", "200"},
 	{":status", "204"},
-	{":status", "206"},
+	{":status", "206"}, // 10
 	{":status", "304"},
 	{":status", "400"},
 	{":status", "404"},
@@ -39,7 +38,7 @@ const char static_table_def[61][2][30] = {
 	{"accept-language", "\0"},
 	{"accept-ranges", "\0"},
 	{"accept", "\0"},
-	{"access-control-allow-origin", "\0"},
+	{"access-control-allow-origin", "\0"}, // 20
 	{"age", "\0"},
 	{"allow", "\0"},
 	{"authorization", "\0"},
@@ -49,7 +48,7 @@ const char static_table_def[61][2][30] = {
 	{"content-language", "\0"},
 	{"content-length", "\0"},
 	{"content-location", "\0"},
-	{"content-range", "\0"},
+	{"content-range", "\0"},  // 30
 	{"content-type", "\0"},
 	{"cookie", "\0"},
 	{"date", "\0"},
@@ -59,7 +58,7 @@ const char static_table_def[61][2][30] = {
 	{"from", "\0"},
 	{"host", "\0"},
 	{"if-match", "\0"},
-	{"if-modified-since", "\0"},
+	{"if-modified-since", "\0"},  // 40
 	{"if-none-match", "\0"},
 	{"if-range", "\0"},
 	{"if-unmodified-since", "\0"},
@@ -69,7 +68,7 @@ const char static_table_def[61][2][30] = {
 	{"max-forwards", "\0"},
 	{"proxy-authenticate", "\0"},
 	{"proxy-authorization", "\0"},
-	{"range", "\0"},
+	{"range", "\0"}, // 50
 	{"referer", "\0"},
 	{"refresh", "\0"},
 	{"retry-after", "\0"},
@@ -79,7 +78,7 @@ const char static_table_def[61][2][30] = {
 	{"transfer-encoding", "\0"},
 	{"user-agent", "\0"},
 	{"vary", "\0"},
-	{"via", "\0"},
+	{"via", "\0"}, // 60
 	{"www-authenticate", "\0"}
 };
 
@@ -90,5 +89,3 @@ public:
 	static int readHpackHeaders(unsigned int payload_length, unsigned char* p);
 	static int decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsigned int *read_bytes, unsigned int *value_length, bool *first_bit_set);
 };
-
-#endif  // HPACK_H
