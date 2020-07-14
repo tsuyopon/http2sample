@@ -245,11 +245,26 @@ unsigned char* FrameProcessor::createFramePayload (int length, char type, char f
 	return frame;
 }
 
-
-/*
- * Settingsフレーム送信用関数。
- * ただし、ACKを送付する場合には、FrameProcessor::sendSettingsAckを使うこと
- */
+//------------------------------------------------------------
+// Settingフレームの送信.
+//     ただし、ACKを送付する場合には、FrameProcessor::sendSettingsAckを使うこと
+// フレームタイプは「0x04」
+// 全てデフォルト値を採用するためpayloadは空です。
+// SettingフレームのストリームIDは0です.
+//
+// 今回は空ですがSettingフレームのpayloadは次のフォーマットです.
+//
+// |Identifer(16bit)|Value(32bit)|
+// 上記を設定値の数だけ連結させ、最終的な長さをヘッダフレームのLengthに記述します.
+//
+// Identiferは次のものが定義されています。
+// SETTINGS_HEADER_TABLE_SIZE (0x1)  初期値は 4,096 オクテット
+// SETTINGS_ENABLE_PUSH (0x2)  初期値は1
+// SETTINGS_MAX_CONCURRENT_STREAMS (0x3)  初期状態では無制限
+// SETTINGS_INITIAL_WINDOW_SIZE (0x4)   初期値は 2^16-1 (65,535)
+// SETTINGS_MAX_FRAME_SIZE (0x5)    初期値は 2^24-1 (16777215)
+// SETTINGS_MAX_HEADER_LIST_SIZE (0x6)   初期値は無制限
+//------------------------------------------------------------
 int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap){
 
 	int writelen;
