@@ -182,8 +182,8 @@ int main(int argc, char **argv)
 	// To avoid unnecessary latency, clients are permitted to send additional frames to the server immediately after sending the client connection preface, without waiting to receive the server connection preface. (sec3.5)
 	// SETTINGSフレームの送信を行う
 	std::map<uint16_t, uint32_t> setmap;
-	setmap[0x1] = 4096;
-	setmap[0x4] = 65535; 
+	setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = 4096;
+	setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = 65535; 
 	if(FrameProcessor::sendSettingsFrame(_ssl, setmap) < 0){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
@@ -196,7 +196,7 @@ int main(int argc, char **argv)
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	int ret = 0;
 	if (ret == static_cast<int>(FrameType::RST_STREAM)){
-		printf("=== Start write SETTINGS frame\n");
+		printf("=== RST_STREAM Recieved\n");
 		return 0;
 	}
 
