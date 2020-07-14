@@ -1,6 +1,7 @@
 #pragma once
 
-#include<string>
+#include <string>
+#include <map>
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
@@ -31,6 +32,7 @@ public:
 	static int readFrameLoop(SSL* ssl, std::string &host);
 	// write
 	static unsigned char* createFramePayload (int length, char type, char flags, int streamid);
+	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, std::string host);
 	static int sendGowayFrame(SSL *ssl);

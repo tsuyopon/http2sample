@@ -271,48 +271,7 @@ int main(int argc, char **argv)
 	std::map<uint16_t, uint32_t> setmap;
 	setmap[0x1] = 4096;
 	setmap[0x4] = 65535; 
-
-	writelen = BINARY_FRAME_LENGTH + setmap.size() * 6;
-	unsigned char *settingframe;
-	settingframe = static_cast<unsigned char*>(malloc(writelen));
-
-	// length
-	settingframe[0] = 0;
-	settingframe[1] = 0;
-	settingframe[2] = setmap.size()*6;  // 1byteだけでsettingは表現できる
-
-	settingframe[3] = 4;  // type
-	settingframe[4] = 0;  // flags
-
-	// streamid
-	settingframe[5] = 0;
-	settingframe[6] = 0;
-	settingframe[7] = 0;
-	settingframe[8] = 0;
-
-	// Note: C/C++ packing signed char into int
-    //    https://stackoverflow.com/questions/2437283/c-c-packing-signed-char-into-int
-	// add setting frame
-	int cnt = 0;
-	for (auto i = setmap.begin(); i != setmap.end(); ++i) {
-		// pack uint16_t
-		settingframe[9+6*cnt] = (i->first >> 8) & 0xff;
-		settingframe[10+6*cnt] = i->first & 0xff;
-
-		// pack uint32_t
-		settingframe[11+6*cnt] = (i->second >> 24) & 0xff;
-		settingframe[12+6*cnt] = (i->second >> 16) & 0xff;
-		settingframe[13+6*cnt] = (i->second >> 8) & 0xff;
-		settingframe[14+6*cnt] = i->second & 0xff;
-		cnt++;
-	}
-
-    printf("=== Start write SETTINGS frame\n");
-	if( FrameProcessor::writeFrame(_ssl, settingframe, writelen) < 0 ){
-		error = get_error();
-		close_socket(_socket, _ctx, _ssl);
-		return 0;
-	}
+	FrameProcessor::sendSettingsFrame(_ssl, setmap);
 
 	// メインループ
 	int loop_return;
