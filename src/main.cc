@@ -35,6 +35,7 @@
 #include "FrameProcessor.h"
 #include "DebugUtils.h"
 #include "ErrorCodes.h"
+#include "HuffmanCode.h"
 
 // ALPN識別子. h2
 static const unsigned char protos[] = { 0x02, 0x68, 0x32 };
