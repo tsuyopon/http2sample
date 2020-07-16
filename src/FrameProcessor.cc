@@ -368,52 +368,42 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 //
 // See: https://tools.ietf.org/html/rfc7541#appendix-B
 //------------------------------------------------------------
-
-// バイト数を変更したら配列数を変更してください、また、SSL_wirteにわたすバイト数も変更してください。
-// フレームの先頭3byteはフレームに含まれるバイト数です。全体で74ならば、そこからヘッダフレーム9byteを引いた64(0x00, 0x00, 0x41)を指定します。
-//	  const unsigned char headersframe[74] = {
-//		  0x00, 0x00, 0x41, 0x01, 0x05, 0x00, 0x00, 0x00, 0x01,   // ヘッダフレーム(**バイト数を変更したら上位３ビットを変更してください**)
-//		  0x00,													  // 圧縮情報
-//		  0x07, 0x3a, 0x6d, 0x65, 0x74, 0x68, 0x6f, 0x64,		  // 7 :method
-//		  0x03, 0x47, 0x45, 0x54,								  // 3 GET
-//		  0x00,													  // 圧縮情報
-//		  0x05, 0x3a, 0x70, 0x61, 0x74, 0x68,					  // 5 :path
-//		  0x01, 0x2f,											  // 1 /
-//		  0x00,													  // 圧縮情報
-//		  0x07, 0x3a, 0x73, 0x63, 0x68, 0x65, 0x6d, 0x65,		  // 7 :scheme
-//		  0x05, 0x68, 0x74, 0x74, 0x70, 0x73,					  // 5 https
-//		  0x00,													  // 圧縮情報
-//		  0x0a, 0x3a, 0x61, 0x75, 0x74, 0x68, 0x6f, 0x72, 0x69, 0x74, 0x79,			  // 10 :authority
-//		  0x0f, 0x77, 0x77, 0x77, 0x2e, 0x79, 0x61, 0x68, 0x6f, 0x6f, 0x2e, 0x63, 0x6f, 0x2e, 0x6a, 0x70 };  // 15.www.yahoo.co.jp
 int FrameProcessor::sendHeadersFrame(SSL *ssl, std::string host){
 
-	int ret_value, ret_value2, ret_value3, ret_value4, total;
-	unsigned char* query1;
-	unsigned char* query2;
-	unsigned char* query3;
-	unsigned char* query4;
-	ret_value  = Hpack::createHpack(std::string(":method"),    std::string("GET"), query1);
-	ret_value2 = Hpack::createHpack(std::string(":path"),	   std::string("/"), query2);
-	ret_value3 = Hpack::createHpack(std::string(":scheme"),    std::string("https"), query3);
-	ret_value4 = Hpack::createHpack(std::string(":authority"), host, query4);
-	total = ret_value + ret_value2 + ret_value3 + ret_value4;
+	std::map<std::string, std::string> headers;
+	headers[":method"] = "GET";
+	headers[":path"] = "/";
+	headers[":scheme"] = "https";
+	headers[":authority"] = "www.google.com";
 
+	std::list<std::pair<int /*length*/, unsigned char*>> pktHeaderList;    // pairの中には「パケット長、パケットへのポインタ」が含まれる
+	int total = 0;
+    for (const auto& [key, value] : headers){
+		unsigned char* query;
+		int ret_bytes;
+		ret_bytes = Hpack::createHpack(key, value, query);           // Hpack表現を生成する
+		pktHeaderList.push_back( std::make_pair(ret_bytes, query) ); // Hpack表現のサイズとポインタへの値をペアとしてlistに追加
+		total += ret_bytes;
+	}
+
+	// フレームを生成する
 	unsigned char* framepayload;
 	framepayload = createFramePayload(total, 0x01, 0x05, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
 
+	// パケット配列全体分のメモリを確保して、先で生成したフレームをコピー
 	unsigned char* headersframe;
-	headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(total+BINARY_FRAME_LENGTH)));
-	int offset;
+	headersframe = static_cast<unsigned char*>(std::malloc(BINARY_FRAME_LENGTH+total));
 	memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
-	offset = BINARY_FRAME_LENGTH;
-	memcpy(headersframe+offset, query1, ret_value);
-	offset += ret_value;
-	memcpy(headersframe+offset, query2, ret_value2);
-	offset += ret_value2;
-	memcpy(headersframe+offset, query3, ret_value3);
-	offset += ret_value3;
-	memcpy(headersframe+offset, query4, ret_value4);
 
+	// フレーム分は上記でmemcpy済みなので、そこからのoffsetでmemcpyにヘッダパケット情報(Hpack)をコピーする
+	int offset = BINARY_FRAME_LENGTH;
+	for(auto itr = pktHeaderList.begin(); itr != pktHeaderList.end(); ++itr) {
+		printf("%d", itr->first);
+		memcpy(headersframe+offset, itr->second, itr->first);
+		offset += itr->first;
+	}
+
+	// ヘッダの送信処理
 	printf("=== Start write HEADERS frame\n");
 	int writelen = total+BINARY_FRAME_LENGTH;
 	if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){

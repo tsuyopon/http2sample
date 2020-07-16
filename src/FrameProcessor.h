@@ -2,6 +2,8 @@
 
 #include <string>
 #include <map>
+#include <list>
+
 #include <openssl/ssl.h>
 #include <openssl/err.h>
 
