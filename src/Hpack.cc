@@ -1,4 +1,5 @@
 #include "Hpack.h"
+#include "HuffmanCode.h"
 
 // HPACKの簡単なデータを作成する。
 // ここで対応しているのは、以下のパターンのみ。
@@ -46,9 +47,10 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 		if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
-			if(first_bit_set) printf("\tHufman encoding flag is set\n");
+			if(first_bit_set) printf("\tHeaderName: Hufman encoding flag is set\n");
 			printf("\tpayload_length=%d, read_values=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
 			p = p + read_bytes;
+			HuffmanCode::decodeHuffman(p, value_length);
 			p = p + value_length;
 			*payload_length = *payload_length - read_bytes - value_length;
 		}
@@ -66,9 +68,10 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 	if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 		printf("[ERROR] Could Not get Header Length\n");
 	} else {
-		if(first_bit_set) printf("\tHufman encoding flag is set\n");
+		if(first_bit_set) printf("\tHeaderValue: Hufman encoding flag is set\n");
 		// FIXME: ハフマン符号の解釈
 		p = p + read_bytes;
+		HuffmanCode::decodeHuffman(p, value_length);
 		p = p + value_length;
 		*payload_length = *payload_length - read_bytes - value_length;
 	}

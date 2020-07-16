@@ -205,6 +205,7 @@ int main(int argc, char **argv)
 	if(FrameProcessor::sendGowayFrame(_ssl) < 0){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
+		return 0;
 	}
 
 	close_socket(_socket, _ctx, _ssl);

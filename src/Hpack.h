@@ -16,6 +16,10 @@
   (byte & 0x02 ? '1' : '0'), \
   (byte & 0x01 ? '1' : '0') 
 
+// 先頭からnbit目の値を取得
+#define HEAD_NBIT_VALUE(byte)  \
+  
+
 // [RFC7541] Appendix A. Static Table Definition 
 // https://tools.ietf.org/html/rfc7541#appendix-A
 const char static_table_def[61][2][30] = {
