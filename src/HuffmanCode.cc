@@ -281,6 +281,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 	unsigned int bitcounter = 0;  // huffman_code_tableと照合するためのビット数
 
 	// whileでは1 octet毎に処理を進める。
+	printf("\tParse Value:");
 	while(1){
 		// octetを取得して、ポインタを進める
 		unsigned int octet;
@@ -320,6 +321,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 		// 残り処理バイト数が存在しなければ処理を終了する
 		length = length -1;
 		if(length == 0){
+			printf("\n");
 			break;
 		}
 

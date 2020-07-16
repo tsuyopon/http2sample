@@ -20,6 +20,17 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
 	return 1 + 1 + header.length() + 1 + value.length();
 }
 
+// FIXME: あとでいどう
+void printStringFromHpack(unsigned char* p, unsigned int value_length){
+	printf("\tParse String: ");
+	while(value_length){
+		printf("%c", p[0]);
+		p++;
+		value_length--;
+	}
+	printf("\n");
+}
+
 /*------------------------------------------------------------
  * 
  * Literal Header Field Representationの共通処理を行う。
@@ -47,10 +58,16 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 		if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
-			if(first_bit_set) printf("\tHeaderName: Hufman encoding flag is set\n");
 			printf("\tpayload_length=%d, read_values=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
 			p = p + read_bytes;
-			HuffmanCode::decodeHuffman(p, value_length);
+
+			if(first_bit_set) {
+				printf("\tHeaderName: Hufman encoding flag IS set\n");
+				HuffmanCode::decodeHuffman(p, value_length);
+			} else {
+				printf("\tHeaderName: Hufman encoding flag IS NOT set\n");
+				printStringFromHpack(p, value_length);
+			}
 			p = p + value_length;
 			*payload_length = *payload_length - read_bytes - value_length;
 		}
@@ -68,10 +85,14 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 	if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 		printf("[ERROR] Could Not get Header Length\n");
 	} else {
-		if(first_bit_set) printf("\tHeaderValue: Hufman encoding flag is set\n");
-		// FIXME: ハフマン符号の解釈
 		p = p + read_bytes;
-		HuffmanCode::decodeHuffman(p, value_length);
+		if(first_bit_set) {
+			printf("\tHeaderValue: Hufman encoding flag IS set\n");
+			HuffmanCode::decodeHuffman(p, value_length);
+		} else {
+			printf("\tHeaderValue: Hufman encoding flag IS NOT set\n");
+			printStringFromHpack(p, value_length);
+		}
 		p = p + value_length;
 		*payload_length = *payload_length - read_bytes - value_length;
 	}
