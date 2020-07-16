@@ -1,7 +1,7 @@
 #include "FrameProcessor.h"
 
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
-int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
+int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers){
 
 	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
@@ -148,7 +148,7 @@ int FrameProcessor::readFrameLoop(SSL* ssl, std::string &host){
 
 				// 初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
 				if(write_headers == 0){
-					if(sendHeadersFrame(ssl, host) < 0){
+					if(sendHeadersFrame(ssl, headers) < 0){
 						// TBD
 					}
 					write_headers = 1;
@@ -368,13 +368,7 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 //
 // See: https://tools.ietf.org/html/rfc7541#appendix-B
 //------------------------------------------------------------
-int FrameProcessor::sendHeadersFrame(SSL *ssl, std::string host){
-
-	std::map<std::string, std::string> headers;
-	headers[":method"] = "GET";
-	headers[":path"] = "/";
-	headers[":scheme"] = "https";
-	headers[":authority"] = "www.google.com";
+int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers){
 
 	std::list<std::pair<int /*length*/, unsigned char*>> pktHeaderList;    // pairの中には「パケット長、パケットへのポインタ」が含まれる
 	int total = 0;

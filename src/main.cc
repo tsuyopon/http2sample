@@ -73,6 +73,12 @@ int main(int argc, char **argv)
 		//host = "www.livedoor.com";    // HTTP/2未対応
 		//host = "github.com";          // HTTP/2未対応
 	}
+	std::map<std::string, std::string> headers;
+	headers[":method"] = "GET";
+	headers[":path"] = "/";
+	headers[":scheme"] = "https";
+	headers[":authority"] = host.c_str();
+
 	printf("Requesting... hostname = %s\n", host.c_str());
 
 	//------------------------------------------------------------
@@ -193,7 +199,7 @@ int main(int argc, char **argv)
 
 	// メインループ
 	int loop_return;
-	loop_return = FrameProcessor::readFrameLoop(_ssl, host);
+	loop_return = FrameProcessor::readFrameLoop(_ssl, headers);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	int ret = 0;
 	if (ret == static_cast<int>(FrameType::RST_STREAM)){
