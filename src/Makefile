@@ -4,5 +4,9 @@ all: HuffmanCode.o FrameProcessor.o DebugUtils.o Hpack.o main.o
 %.o: %.cc
 	g++ -O -c $< -o $@ -std=c++17 -Wall -Wextra
 
+cscope:
+	-rm -f cscope.out
+	cscope -R -b
+
 clean:
 	rm -f *.o a.out main http2client
