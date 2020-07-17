@@ -9,7 +9,9 @@ There are too many limitations about this source code.
 - and a lot...
 
 # Requrement
-require openssl-1.1.0+ to compile this source code.
+- GCC 5 or lator (std=c++17 support compiler)
+  - https://gcc.gnu.org/projects/cxx-status.html#cxx17
+- require openssl-1.1.0+ to compile this source code.
 
 # Compile & Execution  
 - compile
@@ -21,7 +23,7 @@ $ make
 - execute
 you can specify target domain.
 ```
-$ ./http2client www.example.com
+$ ./http2client -u https://example.com/hoge/fuga/piyo
 ```
 
 # Note
