@@ -47,7 +47,7 @@ static int protos_len = 3;
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
 
-// URLをパースする
+// URLをパースして、schme, host, pathを返す
 int8_t parseUrl(std::string url, std::string &scheme, std::string &host, std::string &path){
 
 	std::string https_prefix = "https://";
@@ -73,6 +73,18 @@ int8_t parseUrl(std::string url, std::string &scheme, std::string &host, std::st
 		printf("URL Parse Error. Maybe \"https://\" is not include.\n");
 		return -1;
 	}
+	return 0;
+}
+
+// ヘッダで「Name: Value」形式を分解して、header_name、header_valueに値を格納する
+int8_t parseHeader(std::string header, std::string &header_name, std::string &header_value){
+	size_t colon_pos = header.find(":");
+	if( colon_pos == std::string::npos) {
+		printf("Header Parser Error. \":\" separate field is not found\n");
+		return -1;
+	}
+	header_name =  header.substr(0, header.find(":"));
+	header_value=  header.substr(header.find(":"));
 	return 0;
 }
 
@@ -113,8 +125,14 @@ int main(int argc, char **argv)
 					headers[":path"] = path.c_str();
 				break;
 			case 'H':  // header option
+			{
 					printf("HEADER(H) recieved. %s\n", optarg);
 					url = optarg;
+					std::string header_value;
+					std::string header_name;
+					parseHeader(optarg, header_value, header_name);
+					headers[header_value] = header_name;
+			}
 				break;
 			case '?':  // unknown option...
 					std::cerr << "Unknown option: '" << char(optopt) << "'!" << std::endl;
@@ -147,12 +165,12 @@ int main(int argc, char **argv)
 		headers[":authority"] = host.c_str();
 	}
 
-	printf("===== REQUEST INFORMATION START =====");
+	printf("===== REQUEST INFORMATION START =====\n");
 	printf(":method => %s\n", method.c_str());
 	printf(":scheme => %s\n", scheme.c_str());
 	printf(":authority => %s\n", host.c_str());
 	printf("path => %s\n", path.c_str());
-	printf("===== REQUEST INFORMATION END =====");
+	printf("===== REQUEST INFORMATION END =====\n\n");
 
 	//------------------------------------------------------------
 	// SSLの準備.
