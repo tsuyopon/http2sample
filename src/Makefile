@@ -1,4 +1,4 @@
-all: HuffmanCode.o FrameProcessor.o DebugUtils.o Hpack.o main.o
+all: RequestUtil.o HuffmanCode.o FrameProcessor.o DebugUtils.o Hpack.o main.o
 	g++ $+ -o http2client -lssl -lm -std=c++17 -Wall -Wextra
 
 %.o: %.cc
