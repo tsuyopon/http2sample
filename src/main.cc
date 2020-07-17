@@ -76,6 +76,12 @@ int8_t parseUrl(std::string url, std::string &scheme, std::string &host, std::st
 	return 0;
 }
 
+char asciitolower(char in) {
+    if (in <= 'Z' && in >= 'A')
+        return in - ('Z' - 'z');
+    return in;
+}
+
 // ヘッダで「Name: Value」形式を分解して、header_name、header_valueに値を格納する
 int8_t parseHeader(std::string header, std::string &header_name, std::string &header_value){
 	size_t colon_pos = header.find(":");
@@ -84,9 +90,14 @@ int8_t parseHeader(std::string header, std::string &header_name, std::string &he
 		return -1;
 	}
 	header_name =  header.substr(0, header.find(":"));
+	// header field names MUST be converted to lowercase prior to their encoding in HTTP/2.  A request or response containing uppercase header field names MUST be treated as malformed (sec8.1.2)
+	std::transform(header_name.begin(), header_name.end(), header_name.begin(), asciitolower);
+
 	header_value=  header.substr(header.find(":"));
 	return 0;
 }
+
+
 
 int main(int argc, char **argv)
 {
@@ -165,12 +176,11 @@ int main(int argc, char **argv)
 		headers[":authority"] = host.c_str();
 	}
 
-	printf("===== REQUEST INFORMATION START =====\n");
-	printf(":method => %s\n", method.c_str());
-	printf(":scheme => %s\n", scheme.c_str());
-	printf(":authority => %s\n", host.c_str());
-	printf("path => %s\n", path.c_str());
-	printf("===== REQUEST INFORMATION END =====\n\n");
+	std::cout << "===== REQUEST INFORMATION START =====" << std::endl;
+	for( auto i = headers.begin(); i != headers.end() ; ++i ) {
+		std::cout << i->first << " " << i->second << "\n";
+	}
+	std::cout << "===== REQUEST INFORMATION END =====" << std::endl;
 
 	//------------------------------------------------------------
 	// SSLの準備.
