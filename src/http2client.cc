@@ -40,11 +40,6 @@
 #include "HuffmanCode.h"
 #include "RequestUtil.h"
 
-// ALPN識別子. h2
-static const unsigned char protos[] = { 0x02, 0x68, 0x32 };
-static const char cmp_protos[] = { 0x68, 0x32 };
-static int protos_len = 3;
-
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
 
