@@ -52,11 +52,6 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 				break;
 			case FrameType::DATA:
 				printf("\n=== DATA Frame Recieved ===\n");
-				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
-				if(streamid != 0 ){
-					 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
-					// TBD
-				}
 
 				// 本文の読み込み
 				FrameProcessor::readFrameContents(ssl, payload_length, 1);
@@ -113,6 +108,12 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 			case FrameType::SETTINGS:
 			{
 				printf("=== SETTINGS Frame Recieved ===\n");
+
+				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
+				if(streamid != 0 ){
+					 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
+					// TBD
+				}
 
 				getFrameContentsIntoBuffer(ssl, payload_length, p);
 
