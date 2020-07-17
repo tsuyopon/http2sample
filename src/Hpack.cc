@@ -17,6 +17,8 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
 //	  printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", hpack[0], hpack[1],hpack[2],hpack[3],hpack[4],hpack[5],hpack[6],hpack[7],hpack[8]);
 	dst = hpack;
 //	  printf("%02X %02X %02X %02X %02X %02X %02X %02X %02X\n", dst[0], dst[1],dst[2],dst[3],dst[4],dst[5],dst[6],dst[7],dst[8]);
+
+	// HPACKパケットの長さを返す
 	return 1 + 1 + header.length() + 1 + value.length();
 }
 

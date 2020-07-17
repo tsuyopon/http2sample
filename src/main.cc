@@ -13,6 +13,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <getopt.h>
+
 #include <string>
 #include <map>
 #include <iostream>
@@ -45,13 +47,83 @@ static int protos_len = 3;
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
 
+// URLをパースする
+int8_t parseUrl(std::string url, std::string &scheme, std::string &host, std::string &path){
+
+	std::string https_prefix = "https://";
+	if (url.size() > https_prefix.size() && std::equal(std::begin(https_prefix), std::end(https_prefix), std::begin(url))) {  // 先頭prefixに一致することの確認
+		scheme = "https";  // https以外返さない
+
+		// 先頭から8byte(https://)は除去
+		url.erase(0, https_prefix.size());
+
+		// FIXME: urlはポート番号(:443等)は考慮していない
+		// スラッシュ(/)で前後を分解して、前はドメイン、後ろはURLとする。スラッシュが存在しない場合はpathに"/"を指定する。
+		size_t slash_pos = url.find("/");
+		if( slash_pos == std::string::npos) {
+			// not found slash
+			host = url;  
+			path = "/";
+		} else {
+			// found slash
+			host =  url.substr(0, url.find("/"));
+			path =  url.substr(url.find("/"));
+		}
+	} else {
+		printf("URL Parse Error. Maybe \"https://\" is not include.\n");
+		return -1;
+	}
+	return 0;
+}
+
 int main(int argc, char **argv)
 {
 
-	std::string host;
-	if(argc == 2){
-		host = argv[1];
-	} else {
+	std::map<std::string, std::string> headers;
+	headers[":method"] = "GET";
+	headers[":path"] = "/";
+	headers[":scheme"] = "https";
+
+	// 引数の取得
+	int opt;
+	std::string host ="";
+	std::string path = "/";
+	std::string scheme = "https";
+	std::string method = "GET";
+	std::string url = "https://www.google.com/";
+
+	// Retrieve the options:
+	while ( (opt = getopt(argc, argv, "m:u:H:")) != -1 ) {  // for each option...
+		switch ( opt ) {
+			case 'm':  // method option
+					if( strcmp(optarg, "GET") != 0 && strcmp(optarg, "POST") != 0 && strcmp(optarg, "PUT") != 0 && strcmp(optarg, "DELETE") != 0){
+						printf("unmatch method case exited.\n");
+						exit(1);
+					} 
+					printf("method recieved. %s\n", optarg);
+					headers[":method"] = optarg;
+					method = optarg;
+				break;
+			case 'u':  // url option
+					printf("URL(u) recieved. %s\n", optarg);
+					url = optarg;
+					parseUrl(url, scheme, host, path);
+					headers[":scheme"] = scheme.c_str();
+					headers[":authority"] = host.c_str();
+					headers[":path"] = path.c_str();
+				break;
+			case 'H':  // header option
+					printf("HEADER(H) recieved. %s\n", optarg);
+					url = optarg;
+				break;
+			case '?':  // unknown option...
+					std::cerr << "Unknown option: '" << char(optopt) << "'!" << std::endl;
+					exit(1);
+				break;
+		}
+	}
+
+	if(argc == 1){
 		//------------------------------------------------------------
 		// 接続先ホスト名.
 		//------------------------------------------------------------
@@ -72,14 +144,15 @@ int main(int argc, char **argv)
 		//host = "www.goo.ne.jp";       // HTTP/2未対応
 		//host = "www.livedoor.com";    // HTTP/2未対応
 		//host = "github.com";          // HTTP/2未対応
+		headers[":authority"] = host.c_str();
 	}
-	std::map<std::string, std::string> headers;
-	headers[":method"] = "GET";
-	headers[":path"] = "/";
-	headers[":scheme"] = "https";
-	headers[":authority"] = host.c_str();
 
-	printf("Requesting... hostname = %s\n", host.c_str());
+	printf("===== REQUEST INFORMATION START =====");
+	printf(":method => %s\n", method.c_str());
+	printf(":scheme => %s\n", scheme.c_str());
+	printf(":authority => %s\n", host.c_str());
+	printf("path => %s\n", path.c_str());
+	printf("===== REQUEST INFORMATION END =====");
 
 	//------------------------------------------------------------
 	// SSLの準備.
