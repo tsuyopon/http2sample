@@ -14,6 +14,7 @@
 #include <string.h>
 #include <errno.h>
 #include <getopt.h>
+#include <signal.h>
 
 #include <string>
 #include <map>
@@ -42,6 +43,10 @@
 
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
+
+void handler(int signal) {
+    fprintf(stderr, "signal handler reveived %d signal\n", signal);
+}
 
 int main(int argc, char **argv)
 {
@@ -125,6 +130,20 @@ int main(int argc, char **argv)
 		std::cout << i->first << " " << i->second << "\n";
 	}
 	std::cout << "===== REQUEST INFORMATION END =====" << std::endl;
+
+	//------------------------------------------------------------
+	// シグナルの登録
+	//------------------------------------------------------------
+	struct sigaction action;
+	sigset_t sigset;
+	sigemptyset(&sigset);
+	action.sa_handler = handler;
+	action.sa_flags = 0;
+	action.sa_mask = sigset;
+
+	// RSTでのコネクション切断後にwriteした場合にはSIGPIPEを定義しないとハンドリングできない
+	// http://doi-t.hatenablog.com/entry/2014/06/10/033309
+	sigaction(SIGPIPE, &action, NULL);
 
 	//------------------------------------------------------------
 	// SSLの準備.

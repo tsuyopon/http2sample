@@ -1,7 +1,7 @@
 ...This repository is UNDER CONSTRUCTING...
 
-# http2client
-test implementation for http2 client.
+# http2sample
+This is test sample for http2 client and http2 server.
 
 There are too many limitations about this source code.
 - can access only https://\<domain\>/ at 1 times,   can not specify any entrypoint.
