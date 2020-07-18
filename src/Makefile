@@ -14,4 +14,4 @@ cscope:
 	cscope -R -b
 
 clean:
-	rm -f *.o a.out main http2client http2server
+	rm -f *.o a.out main http2client http2server *.dSYM
