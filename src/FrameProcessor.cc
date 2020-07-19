@@ -1,7 +1,188 @@
 #include "FrameProcessor.h"
 
+
+int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
+	printf("=== PING Frame Recieved ===\n");
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+
+	// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
+	if(streamid != 0 ){
+		// TBD
+		return -1;
+	}
+
+	// Receipt of a PING frame with a length field value other than 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.7)
+	if( payload_length != 8 ){
+		// TBD
+		return -1;
+	}
+
+	// RESPONSE PING ACK
+	unsigned char* headersframe;
+	unsigned char* framepayload;
+	int writelen;
+	framepayload = FrameProcessor::createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), 0x1 /* ACK */, 0 /*streamid*/);
+	headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(BINARY_FRAME_LENGTH + 8)));
+	memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
+	memset(headersframe+BINARY_FRAME_LENGTH, 0, 8);
+	writelen = BINARY_FRAME_LENGTH+8;
+	if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
+		// FIXME: errorとclose_socketへの対応が必要
+		return -1;
+	}
+	return 0;
+}
+
+int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags){
+	printf("\n=== DATA Frame Recieved ===\n");
+
+	// 本文の読み込み
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+
+	// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
+	if( flags & 0x1 ){
+		 printf("\n*** END_STREAM Recieved\n");
+		return 1;
+	}
+
+	return  0;
+
+}
+
+void FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+
+	printf("=== HEADERS Frame Recieved ===\n");
+	if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
+	if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
+	if( flags & 0x8 ) printf("*** PADDED Recieved\n");
+	if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
+	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
+	getFrameContentsIntoBuffer(ssl, payload_length, p);
+	Hpack::readHpackHeaders(payload_length, p);
+	return;
+
+}
+
+void FrameProcessor::_rcv_priority_frame(SSL* ssl, unsigned int &payload_length){
+	printf("=== PRIORITY Frame Recieved ===\n");
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	/* do nothing */
+	// フレームだけ読み飛ばす
+}
+
+int FrameProcessor::_rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p){
+	printf("=== RST_STREAM Frame Recieved ===\n");
+
+	// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
+	if( streamid != 0 ){
+		printf("[ERROR] invalid RST_STREAM. This message must be PROTOCOL_ERROR. streamid=%d\n", streamid);
+		// TBD
+		return -1;
+	}
+
+	// A RST_STREAM frame with a length other than 4 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.4)
+	if( payload_length != 4 ){
+		printf("[ERROR] invalid RST_STREAM. FRAME_SIZE_ERROR");
+		// TBD
+		return -1;
+	}
+
+	getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
+	unsigned int error_code;
+	error_code = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+	printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
+	return 0;
+
+}
+
+int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+	printf("=== SETTINGS Frame Recieved ===\n");
+
+	// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
+	if(streamid != 0 ){
+		 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
+		// TBD
+	}
+
+	FrameProcessor::getFrameContentsIntoBuffer(ssl, payload_length, p);
+
+	int setting_num;
+	setting_num = payload_length/6;
+	printf("Recieved %d settings\n", setting_num);
+
+	// SETTINGSフレームで取得した設定値があれば、表示する。
+	while(setting_num){
+		//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
+		unsigned short identifier;
+		unsigned int value;
+		identifier = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
+		value = ( ( (p[2] & 0xFF) << 24 ) + ((p[3] & 0xFF) << 16 ) + ((p[4] & 0xFF) << 8 ) + ((p[5] & 0xFF) ));
+		printf("identifier=%d, value=%d\n", identifier, value);
+		p += 6;
+		setting_num--;
+	}
+
+	// SETTINGSフレームには設定が0なら0octet、設定が1つなら6octet、2つなら12octetと6の倍数の値になることが保証されています。
+	// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
+	if( payload_length % 6 != 0 ){
+		printf("=== [ERROR] Invalid Settings Frame Recieved\n");
+		return -1;
+	}
+
+	// SETTINGSフレームへの応答
+	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
+	printf("\n=== SETTINGS Frame flags===\n");
+	if( payload_length != 0 && flags != 0x01 /* ACK */ ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
+		if(FrameProcessor::sendSettingsAck(ssl) < 0){
+			// TBD
+			return -1;
+		}
+	}
+	return 0;
+
+}
+
+void FrameProcessor::_rcv_push_promise_frame(SSL* ssl, unsigned int &payload_length){
+	printf("=== PUSH_PROMISE Frame Recieved ===\n");
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	/* do nothing */
+	// フレームだけ読み飛ばす
+}
+
+void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
+	printf("=== GOAWAY Frame Recieved ===\n");
+	getFrameContentsIntoBuffer(ssl, payload_length, p);
+	unsigned int last_streamid;
+	unsigned int error_code;
+	// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
+	last_streamid = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+	error_code = ( ( (p[4] & 0xFF) << 24 ) + ((p[5] & 0xFF) << 16 ) + ((p[6] & 0xFF) << 8 ) + ((p[7] & 0xFF) ));
+	printf("last_streamid = %d, error_code = %d message = %s\n", last_streamid, error_code, ErrorMessages[error_code].c_str());
+}
+
+void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
+	printf("=== WINDOW_UPDATE Frame Recieved ===\n");
+	getFrameContentsIntoBuffer(ssl, payload_length, p);
+	unsigned int size_increment;;
+	size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+	printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
+	printf("window_size_increment = %d\n", size_increment);
+}
+
+int FrameProcessor::_rcv_continuation_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
+	printf("=== CONTINUATION Frame Recieved ===\n");
+	if(streamid == 0 ){
+		printf("Invalid CONTINUATION Frame Recieved\n");
+		// TBD
+		return -1;
+	}
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	return 0;
+}
+
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
-int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers){
+// serverとclientから利用できるようにフラグをもつ
+int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
 
 	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
@@ -23,134 +204,41 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
 			case FrameType::PING:
-				printf("=== PING Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-
-				// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
-				if(streamid != 0 ){
-					// TBD
-				}
-
-				// Receipt of a PING frame with a length field value other than 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.7)
-				if( payload_length != 8 ){
-					// TBD
-				}
-
-				// RESPONSE PING ACK
-				unsigned char* headersframe;
-				unsigned char* framepayload;
-				int writelen;
-				framepayload = createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), 0x1 /* ACK */, 0 /*streamid*/);
-				headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(BINARY_FRAME_LENGTH + 8)));
-				memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
-				memset(headersframe+BINARY_FRAME_LENGTH, 0, 8);
-				writelen = BINARY_FRAME_LENGTH+8;
-				if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
-					// FIXME: errorとclose_socketへの対応が必要
+				if( FrameProcessor::_rcv_ping_frame(ssl, streamid, payload_length) < 0 ){
+					// FIXME
 					return -1;
 				}
 				break;
 			case FrameType::DATA:
-				printf("\n=== DATA Frame Recieved ===\n");
-
-				// 本文の読み込み
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-
-				// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
-				if( flags & 0x1 ){
-					 printf("\n*** END_STREAM Recieved\n");
+				int ret;
+				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
+				if(ret == 1){
 					return 0;
 				}
-
 				break;
 				
 			case FrameType::HEADERS:
-				printf("=== HEADERS Frame Recieved ===\n");
-				if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
-				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
-				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
-				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
-				// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				Hpack::readHpackHeaders(payload_length, p);
-
+				FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
 				break;
 
 			case FrameType::PRIORITY:
-				printf("=== PRIORITY Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				/* do nothing */
-				// フレームだけ読み飛ばす
+				FrameProcessor::_rcv_priority_frame(ssl, payload_length);
 				break;
 
 			case FrameType::RST_STREAM:
-				printf("=== RST_STREAM Frame Recieved ===\n");
-
-				// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
-				if( streamid != 0 ){
-					printf("[ERROR] invalid RST_STREAM. This message must be PROTOCOL_ERROR. streamid=%d\n", streamid);
-					// TBD
+				if(FrameProcessor::_rcv_rst_stream_frame(ssl, streamid, payload_length, p) < 0){
+					// TBD: error
 				}
-
-				// A RST_STREAM frame with a length other than 4 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.4)
-				if( payload_length != 4 ){
-					printf("[ERROR] invalid RST_STREAM. FRAME_SIZE_ERROR");
-					// TBD
-				}
-
-				getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
-				unsigned int error_code;
-				error_code = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
-
 				return static_cast<int>(FrameType::RST_STREAM);
 
 			case FrameType::SETTINGS:
-			{
-				printf("=== SETTINGS Frame Recieved ===\n");
-
-				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
-				if(streamid != 0 ){
-					 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
-					// TBD
+				if(FrameProcessor::_rcv_settings_frame(ssl, streamid, payload_length, flags, p) < 0){
+					// TBD: error
 				}
 
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-
-				int setting_num;
-				setting_num = payload_length/6;
-				printf("Recieved %d settings\n", setting_num);
-
-				// SETTINGSフレームで取得した設定値があれば、表示する。
-				while(setting_num){
-					//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
-					unsigned short identifier;
-					unsigned int value;
-					identifier = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
-					value = ( ( (p[2] & 0xFF) << 24 ) + ((p[3] & 0xFF) << 16 ) + ((p[4] & 0xFF) << 8 ) + ((p[5] & 0xFF) ));
-					printf("identifier=%d, value=%d\n", identifier, value);
-					p += 6;
-					setting_num--;
-				}
-
-				// SETTINGSフレームには設定が0なら0octet、設定が1つなら6octet、2つなら12octetと6の倍数の値になることが保証されています。
-				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-				if( payload_length % 6 != 0 ){
-					printf("=== [ERROR] Invalid Settings Frame Recieved\n");
-					return -1;
-				}
-
-				// SETTINGSフレームへの応答
-				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-				printf("\n=== SETTINGS Frame flags===\n");
-				if( payload_length != 0 && flags != 0x01 /* ACK */ ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
-					if(sendSettingsAck(ssl) < 0){
-						// TBD
-					}
-				}
-
-				// 初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
-				if(write_headers == 0){
+				// TBD あとで移動
+				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
+				if(server == false && write_headers == 0){
 					if(sendHeadersFrame(ssl, headers) < 0){
 						// TBD
 					}
@@ -158,44 +246,23 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 				}
 
 				break;
-			}
 
 			case FrameType::PUSH_PROMISE:
-				printf("=== PUSH_PROMISE Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				/* do nothing */
-				// フレームだけ読み飛ばす
+				FrameProcessor::_rcv_push_promise_frame(ssl, payload_length);
 				break;
 
 			case FrameType::GOAWAY:
-			{
-				printf("=== GOAWAY Frame Recieved ===\n");
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				unsigned int last_streamid;
-				unsigned int error_code;
-				// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
-				last_streamid = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				error_code = ( ( (p[4] & 0xFF) << 24 ) + ((p[5] & 0xFF) << 16 ) + ((p[6] & 0xFF) << 8 ) + ((p[7] & 0xFF) ));
-				printf("last_streamid = %d, error_code = %d message = %s\n", last_streamid, error_code, ErrorMessages[error_code].c_str());
+				FrameProcessor::_rcv_goaway_frame(ssl, payload_length, p);
 				return 0;
-			}
 
 			case FrameType::WINDOW_UPDATE:
-				printf("=== WINDOW_UPDATE Frame Recieved ===\n");
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				unsigned int size_increment;;
-				size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
-				printf("window_size_increment = %d\n", size_increment);
+				FrameProcessor::_rcv_window_update_frame(ssl, payload_length, p);
 				break;
 
 			case FrameType::CONTINUATION:
-				printf("=== CONTINUATION Frame Recieved ===\n");
-				if(streamid == 0 ){
-					printf("Invalid CONTINUATION Frame Recieved\n");
-					// TBD
+				if(FrameProcessor::_rcv_continuation_frame(ssl, streamid, payload_length) < 0 ){
+					// TBD: error
 				}
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
 				break;
 
 			/* how to handle unknown frame type */
@@ -208,216 +275,6 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 	}
 	return 0;  // FIXME
 }
-
-// FIXME: とりあえず readFrameLoopとの差分はcommentへと変換する
-int FrameProcessor::readFrameServerLoop(SSL* ssl){
-
-//	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
-	unsigned int payload_length = 0;
-	unsigned char type = 0;
-	unsigned char flags = 0;
-	unsigned int streamid = 0;
-	unsigned char buf[BUF_SIZE] = {0};
-	unsigned char* p = buf;
-
-	while(1){
-		type = 0;
-		flags = 0;
-		memset(buf, 0, BUF_SIZE);
-
-		printf("\n\nreadFrameLoop: loop start\n");
-		FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
-		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
-
-		switch(static_cast<FrameType>(type)){
-			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
-			case FrameType::PING:
-				printf("=== PING Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-
-				// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
-				if(streamid != 0 ){
-					// TBD
-				}
-
-				// Receipt of a PING frame with a length field value other than 8 MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.7)
-				if( payload_length != 8 ){
-					// TBD
-				}
-
-				// RESPONSE PING ACK
-				unsigned char* headersframe;
-				unsigned char* framepayload;
-				int writelen;
-				framepayload = createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), 0x1 /* ACK */, 0 /*streamid*/);
-				headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(BINARY_FRAME_LENGTH + 8)));
-				memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
-				memset(headersframe+BINARY_FRAME_LENGTH, 0, 8);
-				writelen = BINARY_FRAME_LENGTH+8;
-				if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
-					// FIXME: errorとclose_socketへの対応が必要
-					return -1;
-				}
-				break;
-			case FrameType::DATA:
-				printf("\n=== DATA Frame Recieved ===\n");
-
-				// 本文の読み込み
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-
-				// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
-				if( flags & 0x1 ){
-					 printf("\n*** END_STREAM Recieved\n");
-					return 0;
-				}
-
-				break;
-				
-			case FrameType::HEADERS:
-				printf("=== HEADERS Frame Recieved ===\n");
-				if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
-				if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
-				if( flags & 0x8 ) printf("*** PADDED Recieved\n");
-				if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
-				// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				Hpack::readHpackHeaders(payload_length, p);
-
-				break;
-
-			case FrameType::PRIORITY:
-				printf("=== PRIORITY Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				/* do nothing */
-				// フレームだけ読み飛ばす
-				break;
-
-			case FrameType::RST_STREAM:
-				printf("=== RST_STREAM Frame Recieved ===\n");
-
-				// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
-				if( streamid != 0 ){
-					printf("[ERROR] invalid RST_STREAM. This message must be PROTOCOL_ERROR. streamid=%d\n", streamid);
-					// TBD
-				}
-
-				// A RST_STREAM frame with a length other than 4 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR. (sec6.4)
-				if( payload_length != 4 ){
-					printf("[ERROR] invalid RST_STREAM. FRAME_SIZE_ERROR");
-					// TBD
-				}
-
-				getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
-				unsigned int error_code;
-				error_code = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
-
-				return static_cast<int>(FrameType::RST_STREAM);
-
-			case FrameType::SETTINGS:
-			{
-				printf("=== SETTINGS Frame Recieved ===\n");
-
-				// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
-				if(streamid != 0 ){
-					 printf("[ERROR] invalid DATA Frame. PROTOCOL_ERROR");
-					// TBD
-				}
-
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-
-				int setting_num;
-				setting_num = payload_length/6;
-				printf("Recieved %d settings\n", setting_num);
-
-				// SETTINGSフレームで取得した設定値があれば、表示する。
-				while(setting_num){
-					//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
-					unsigned short identifier;
-					unsigned int value;
-					identifier = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
-					value = ( ( (p[2] & 0xFF) << 24 ) + ((p[3] & 0xFF) << 16 ) + ((p[4] & 0xFF) << 8 ) + ((p[5] & 0xFF) ));
-					printf("identifier=%d, value=%d\n", identifier, value);
-					p += 6;
-					setting_num--;
-				}
-
-				// SETTINGSフレームには設定が0なら0octet、設定が1つなら6octet、2つなら12octetと6の倍数の値になることが保証されています。
-				// A SETTINGS frame with a length other than a multiple of 6 octets MUST be treated as a connection error (Section 5.4.1) of type FRAME_SIZE_ERROR.
-				if( payload_length % 6 != 0 ){
-					printf("=== [ERROR] Invalid Settings Frame Recieved\n");
-					return -1;
-				}
-
-				// SETTINGSフレームへの応答
-				// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-				printf("\n=== SETTINGS Frame flags===\n");
-				if( payload_length != 0 && flags != 0x01 /* ACK */ ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
-					if(sendSettingsAck(ssl) < 0){
-						// TBD
-					}
-				}
-
-//				// 初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
-//				if(write_headers == 0){
-//					if(sendHeadersFrame(ssl, headers) < 0){
-//						// TBD
-//					}
-//					write_headers = 1;
-//				}
-
-				break;
-			}
-
-			case FrameType::PUSH_PROMISE:
-				printf("=== PUSH_PROMISE Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				/* do nothing */
-				// フレームだけ読み飛ばす
-				break;
-
-			case FrameType::GOAWAY:
-			{
-				printf("=== GOAWAY Frame Recieved ===\n");
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				unsigned int last_streamid;
-				unsigned int error_code;
-				// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
-				last_streamid = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				error_code = ( ( (p[4] & 0xFF) << 24 ) + ((p[5] & 0xFF) << 16 ) + ((p[6] & 0xFF) << 8 ) + ((p[7] & 0xFF) ));
-				printf("last_streamid = %d, error_code = %d message = %s\n", last_streamid, error_code, ErrorMessages[error_code].c_str());
-				return 0;
-			}
-
-			case FrameType::WINDOW_UPDATE:
-				printf("=== WINDOW_UPDATE Frame Recieved ===\n");
-				getFrameContentsIntoBuffer(ssl, payload_length, p);
-				unsigned int size_increment;;
-				size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-				printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
-				printf("window_size_increment = %d\n", size_increment);
-				break;
-
-			case FrameType::CONTINUATION:
-				printf("=== CONTINUATION Frame Recieved ===\n");
-				if(streamid == 0 ){
-					printf("Invalid CONTINUATION Frame Recieved\n");
-					// TBD
-				}
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				break;
-
-			/* how to handle unknown frame type */
-			default:
-				printf("=== UNKNOWN Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				break;
-
-		}
-	}
-	return 0;  // FIXME
-}
-
 
 //////////////////////////
 // WRITE

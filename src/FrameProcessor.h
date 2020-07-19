@@ -42,8 +42,7 @@ enum SettingsId : uint16_t
 
 class FrameProcessor {
 public:
-	static int readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers);
-	static int readFrameServerLoop(SSL* ssl);
+	static int readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers, bool server=false);
 	// write
 	static unsigned char* createFramePayload (int length, char type, char flags, int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
@@ -59,4 +58,16 @@ public:
 	static void to_frametype(unsigned char * &p, unsigned char *type);
 	static void to_frameflags(unsigned char * &p, unsigned char *flags);
 	static void to_framestreamid(unsigned char * &p, unsigned int& streamid);
+private:
+	// 必要最小限の引数だけを追加
+	static int _rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
+	static int _rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags);
+	static void _rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
+	static void _rcv_priority_frame(SSL* ssl, unsigned int &payload_length);
+	static int _rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p);
+	static int _rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
+	static void _rcv_push_promise_frame(SSL* ssl, unsigned int &payload_length);
+	static void _rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
+	static void _rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
+	static int _rcv_continuation_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
 };

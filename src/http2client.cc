@@ -263,7 +263,7 @@ int main(int argc, char **argv)
 
 	// メインループ
 	int loop_return;
-	loop_return = FrameProcessor::readFrameLoop(_ssl, headers);
+	loop_return = FrameProcessor::readFrameLoop(_ssl, headers, false);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	int ret = 0;
 	if (ret == static_cast<int>(FrameType::RST_STREAM)){

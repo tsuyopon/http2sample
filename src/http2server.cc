@@ -193,7 +193,10 @@ int main(int argc, char **argv)
 				setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = 4096;
 				setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = 65534;  // FIXME 65535
 				FrameProcessor::sendSettingsFrame(ssl, setmap);
-				if( FrameProcessor::readFrameServerLoop(ssl) < 0){
+
+				// FIXME: headersは空なので
+				std::map<std::string, std::string> headers;
+				if( FrameProcessor::readFrameLoop(ssl, headers, true) < 0){
 					return -1;
 				}
 			}
