@@ -1,5 +1,4 @@
-#ifndef DEFINITIONS_H
-#define DEFINITIONS_H
+#pragma once
 
 #define PORT 443
 #define BINARY_FRAME_LENGTH 9
@@ -10,5 +9,3 @@
 static const unsigned char protos[] = { 0x02, 0x68, 0x32 };
 static const char cmp_protos[] = { 0x68, 0x32 };
 static int protos_len = 3;
-
-#endif  // DEFINITIONS_H
