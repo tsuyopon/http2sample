@@ -49,7 +49,7 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 
 }
 
-void FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+int FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 
 	printf("=== HEADERS Frame Recieved ===\n");
 	if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
@@ -59,7 +59,8 @@ void FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, 
 	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	Hpack::readHpackHeaders(payload_length, p);
-	return;
+	if( (flags & 0x1) && (flags & 0x4) ) return 1;
+	return 0;
 
 }
 
@@ -131,8 +132,8 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 
 	// SETTINGSフレームへの応答
 	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-	printf("\n=== SETTINGS Frame flags===\n");
 	if( payload_length != 0 && flags != 0x01 /* ACK */ ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
+		printf("\n=== Send Settings Ack ===\n");
 		if(FrameProcessor::sendSettingsAck(ssl) < 0){
 			// TBD
 			return -1;
@@ -197,11 +198,11 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 		flags = 0;
 		memset(buf, 0, BUF_SIZE);
 
-		printf("\n\nreadFrameLoop: loop start\n");
+//		printf("\n\nreadFrameLoop: loop start\n");
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
-		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
+		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -220,7 +221,21 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 				break;
 				
 			case FrameType::HEADERS:
-				FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
+
+				// クライアントで、END_HEADERSを受信したら終了
+				if( !server && FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p) == 1){
+					printf("recieved 1 from _rcv_headers_frame\n");
+					return 0;
+				}
+
+				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
+				if(server){
+					std::map<std::string, std::string> headers;
+					headers[":status"] = "200";
+					FrameProcessor::sendHeadersFrame(ssl, headers);
+					return 0;
+				}
+
 				break;
 
 			case FrameType::PRIORITY:
@@ -245,14 +260,6 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 						// TBD
 					}
 					write_headers = 1;
-				}
-
-				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
-				if(server){
-					std::map<std::string, std::string> headers;
-					headers[":status"] = "200";
-					FrameProcessor::sendHeadersFrame(ssl, headers);
-					return 0;
 				}
 
 				break;
@@ -542,7 +549,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 	while (1){
 
 		r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
-		printf("BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+//		printf("BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
 		ret = SSL_get_error(ssl, r); 
 		switch (ret){
 			case SSL_ERROR_NONE:
@@ -563,7 +570,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 	FrameProcessor::to_frametype(p, type);
 	FrameProcessor::to_frameflags(p, flags);
 	FrameProcessor::to_framestreamid(p, streamid);
-	printf("streamid = %d\n\n", streamid);
+//	printf("streamid = %d\n\n", streamid);
 
 	return ret;
 }
@@ -646,7 +653,7 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 
 // フレーム長3byteを取得してunsigned intにコピーする
 unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned int &n){
-	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
+//	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
 	u_char buf[4] = {0};	  // bufを4byte初期化
 	memcpy(&(buf[1]), p, 3);  // bufの2byte目から4byteめまでをコピー
 	memcpy(&n, buf, 4);		  // buf領域を全てコピー
@@ -657,14 +664,14 @@ unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned in
 
 // パケットからフレームタイプを取得する
 void FrameProcessor::to_frametype(unsigned char * &p, unsigned char *type){
-	printf("to_frametype: %02x\n", p[0]);
+//	printf("to_frametype: %02x\n", p[0]);
 	*type = p[0];
 	p++;
 }
 
 // パケットからフレームタイプのflagsを取得する
 void FrameProcessor::to_frameflags(unsigned char * &p, unsigned char *flags){	// to_frametypeと共通
-	printf("to_frameflags: %02x\n", p[0]);
+//	printf("to_frameflags: %02x\n", p[0]);
 	*flags = p[0];
 	p++;
 }
@@ -674,7 +681,7 @@ void FrameProcessor::to_framestreamid(unsigned char * &p, unsigned int& streamid
 	streamid = 0;
 	// see: How to make int from char[4]? (in C)
 	//	 https://stackoverflow.com/questions/17602229/how-to-make-int-from-char4-in-c/17602505
-	printf("to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
+//	printf("to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	streamid = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | (p[3]);
 	p += 4;
 }

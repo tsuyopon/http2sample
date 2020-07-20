@@ -1,4 +1,4 @@
-all: client
+all: clean client server
 
 server: DebugUtils.o HuffmanCode.o FrameProcessor.o Hpack.o http2server.o
 	g++ -g $+ -o http2server -lssl -lcrypto -std=c++17 -Wall -Wextra 

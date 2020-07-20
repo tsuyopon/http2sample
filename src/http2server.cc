@@ -19,10 +19,6 @@
 #define SD_BOTH SHUT_WR
 #define SOCKET int
 
-int get_error();
-//void close_socket(SOCKET socket, SSL_CTX *ctx, SSL *ssl);
-
-
 void handler(int signal) {
 	fprintf(stderr, "signal handler reveived %d signal\n", signal);
 }
@@ -124,7 +120,7 @@ int main(int argc, char **argv)
 		exit(EXIT_FAILURE);
 	}
 
-	int serverfd;
+	SOCKET serverfd;
 	if( (serverfd = socket(PF_INET, SOCK_STREAM, 0) ) < 0 ){
 		printf("Error calling socket()\n");
 		exit(1);
@@ -151,6 +147,7 @@ int main(int argc, char **argv)
 	}
 
 	socklen_t size = sizeof(struct sockaddr_in);
+	int error = 0;
 	char buf[1024];
 //	char body[] = "hello world";
 //	char header[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: Close\r\n";
@@ -200,6 +197,12 @@ int main(int argc, char **argv)
 				if( FrameProcessor::readFrameLoop(ssl, headers, true) < 0){
 					return -1;
 				}
+
+				// GOAWAYフレームの送信
+				if(FrameProcessor::sendGowayFrame(ssl) < 0){
+					return 0;
+				}
+
 			}
 			printf("Finished Session\n");
 
@@ -207,26 +210,13 @@ int main(int argc, char **argv)
 			printf("ACCEPT ERROR OCCURED ret=%d\n", ret);
 		}
 
-		int sd;
-		sd = SSL_get_fd(ssl);
+		SSL_shutdown(ssl);
+		int sd = SSL_get_fd(ssl);
 		SSL_free(ssl);
-		close(sd);
 	}
 
+	::shutdown(serverfd, SD_BOTH);
 	close(serverfd);
 	SSL_CTX_free(ctx);
-
+	ERR_free_strings();
 }
-
-//void close_socket(SOCKET socket, SSL_CTX *ctx, SSL *ssl){
-//	SSL_shutdown(ssl);
-//	SSL_free(ssl);
-//	::shutdown(socket, SD_BOTH);
-//	::close(socket);
-//	SSL_CTX_free(ctx);
-//	ERR_free_strings();
-//}
-//
-//int get_error(){
-//	return errno;
-//}
