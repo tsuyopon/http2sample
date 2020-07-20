@@ -156,6 +156,7 @@ int main(int argc, char **argv)
 //	char header[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: Close\r\n";
 	while(1) {
 
+		printf("accept start...\n");
 		int client;
 		client = accept(serverfd, (struct sockaddr*)&addr, &size);
 		printf("Connection: %s:%d\n", inet_ntoa(addr.sin_addr), ntohs(addr.sin_port));
@@ -200,6 +201,7 @@ int main(int argc, char **argv)
 					return -1;
 				}
 			}
+			printf("Finished Session\n");
 
 		} else {
 			printf("ACCEPT ERROR OCCURED ret=%d\n", ret);

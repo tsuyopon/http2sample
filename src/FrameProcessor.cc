@@ -198,7 +198,9 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 		memset(buf, 0, BUF_SIZE);
 
 		printf("\n\nreadFrameLoop: loop start\n");
-		FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid);
+		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
+			return 0;
+		}
 		printf("type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
@@ -243,6 +245,14 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 						// TBD
 					}
 					write_headers = 1;
+				}
+
+				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
+				if(server){
+					std::map<std::string, std::string> headers;
+					headers[":status"] = "200";
+					FrameProcessor::sendHeadersFrame(ssl, headers);
+					return 0;
 				}
 
 				break;
@@ -542,7 +552,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 				continue;
 			default:
 				if (r == -1){
-					printf("Error Occured: HEADER_FRAME SSL_read");
+					printf("Error Occured: HEADER_FRAME SSL_read. error code=%d", ret);
 					return ret;  // TODO: 後で綺麗にする
 				}
 		}
