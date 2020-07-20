@@ -45,7 +45,8 @@ int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
 
 void handler(int signal) {
-    fprintf(stderr, "signal handler reveived %d signal\n", signal);
+	fprintf(stderr, "signal handler reveived %d signal. exited\n", signal);
+	exit(1);
 }
 
 int main(int argc, char **argv)
