@@ -49,6 +49,7 @@ public:
 	static int sendSettingsAck(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers);
 	static int sendGowayFrame(SSL *ssl);
+	static int sendWindowUpdateFrame(SSL *ssl);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);
 	// read
 	static int readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);

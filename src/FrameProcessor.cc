@@ -511,6 +511,17 @@ int FrameProcessor::sendGowayFrame(SSL *ssl){
 	return 0;
 }
 
+int FrameProcessor::sendWindowUpdateFrame(SSL *ssl){
+	printf("\n=== Start write Window Update frame\n");
+	const char windowUpdate[13] = { 0x00, 0x00, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x27, 0x10};
+	int writelen = sizeof(windowUpdate);
+	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
+	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(windowUpdate)), writelen) < 0 ){
+		return -1;
+	}
+	return 0;
+}
+
 int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length){
 
 	int r = 0;
