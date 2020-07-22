@@ -192,6 +192,7 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 	unsigned int streamid = 0;
 	unsigned char buf[BUF_SIZE] = {0};
 	unsigned char* p = buf;
+	unsigned int consume_data = 0;
 
 	while(1){
 		type = 0;
@@ -214,9 +215,19 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 				break;
 			case FrameType::DATA:
 				int ret;
+				consume_data += payload_length;
 				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
 				if(ret == 1){
 					return 0;
+				}
+
+				// TODO: この数字はアテでとりあえず50000受信したら応答するようにしてしまっている、本来は取得した設定値を元にして算出するのが良い。
+				if( consume_data > 50000 ){
+					// Note: 以下のストリームレベルとコネクションレベル双方存在していれば、DATAフレームが途中で停止しない
+					unsigned int connection_streamid = 0;
+					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, consume_data);             // ストリームレベルの通知
+					FrameProcessor::sendWindowUpdateFrame(ssl, connection_streamid, consume_data);  // コネクションレベルの通知
+					consume_data = 0;
 				}
 				break;
 				
@@ -511,12 +522,28 @@ int FrameProcessor::sendGowayFrame(SSL *ssl){
 	return 0;
 }
 
-int FrameProcessor::sendWindowUpdateFrame(SSL *ssl){
+int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, unsigned int& increment_size){
 	printf("\n=== Start write Window Update frame\n");
-	const char windowUpdate[13] = { 0x00, 0x00, 0x04, 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x27, 0x10};
+
+	// 上位3byteは4byte固定、タイプは0x08、フラグはなし、streamidは0x00、ペイロードの4byteはincrement_size
+	char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
+
 	int writelen = sizeof(windowUpdate);
+
+	// streamid
+	windowUpdate[5] = (streamid >> 24) & 0xff;
+	windowUpdate[6] = (streamid >> 16) & 0xff;
+	windowUpdate[7] = (streamid >> 8) & 0xff;
+	windowUpdate[8] = streamid & 0xff;
+
+	// 最後の4byteはincrement size
+	windowUpdate[9] = (increment_size >> 24) & 0xff;
+	windowUpdate[10] = (increment_size >> 16) & 0xff;
+	windowUpdate[11] = (increment_size >> 8) & 0xff;
+	windowUpdate[12] = increment_size & 0xff;
+
 	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
-	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(windowUpdate)), writelen) < 0 ){
+	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(windowUpdate), writelen) < 0 ){
 		return -1;
 	}
 	return 0;
