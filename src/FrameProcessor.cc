@@ -549,6 +549,33 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, unsi
 	return 0;
 }
 
+int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code){
+	printf("\n=== Start write RST_STREAM frame\n");
+
+	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
+	char rstStream[13] = { 0x00, 0x00, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+	int writelen = sizeof(rstStream);
+
+	// streamidで上書き
+	rstStream[5] = (streamid >> 24) & 0xff;
+	rstStream[6] = (streamid >> 16) & 0xff;
+	rstStream[7] = (streamid >> 8) & 0xff;
+	rstStream[8] = streamid & 0xff;
+
+	// 最後の4byteはincrement size
+	rstStream[9] = (error_code >> 24) & 0xff;
+	rstStream[10] = (error_code >> 16) & 0xff;
+	rstStream[11] = (error_code >> 8) & 0xff;
+	rstStream[12] = error_code & 0xff;
+
+	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
+	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(rstStream), writelen) < 0 ){
+		return -1;
+	}
+	return 0;
+}
+
 int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length){
 
 	int r = 0;
