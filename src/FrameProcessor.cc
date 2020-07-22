@@ -525,12 +525,12 @@ int FrameProcessor::sendGowayFrame(SSL *ssl){
 int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, unsigned int& increment_size){
 	printf("\n=== Start write Window Update frame\n");
 
-	// 上位3byteは4byte固定、タイプは0x08、フラグはなし、streamidは0x00、ペイロードの4byteはincrement_size
-	char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
+	char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	int writelen = sizeof(windowUpdate);
 
-	// streamid
+	// streamidで上書き
 	windowUpdate[5] = (streamid >> 24) & 0xff;
 	windowUpdate[6] = (streamid >> 16) & 0xff;
 	windowUpdate[7] = (streamid >> 8) & 0xff;
