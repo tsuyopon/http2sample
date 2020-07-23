@@ -15,6 +15,7 @@
 
 #include "Definitions.h"
 #include "FrameProcessor.h"
+#include "ConnectionState.h"
 
 #define SD_BOTH SHUT_WR
 #define SOCKET int
@@ -188,9 +189,12 @@ int main(int argc, char **argv)
 				printf("%s\n", buf);
 
 				std::map<uint16_t, uint32_t> setmap;
-				setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = 4096;
-				setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = 65534;  // FIXME 65535
-				FrameProcessor::sendSettingsFrame(ssl, setmap);
+				ConnectionState* con_state = new ConnectionState();
+				con_state->getSettingsMap(setmap);
+
+				if(FrameProcessor::sendSettingsFrame(ssl, setmap) < 0){
+					// TBD
+				}
 
 				// FIXME: headersは空なので
 				std::map<std::string, std::string> headers;

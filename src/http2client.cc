@@ -40,6 +40,7 @@
 #include "ErrorCodes.h"
 #include "HuffmanCode.h"
 #include "RequestUtil.h"
+#include "ConnectionState.h"
 
 int get_error();
 void close_socket(SOCKET socket, SSL_CTX *_ctx, SSL *_ssl);
@@ -253,9 +254,11 @@ int main(int argc, char **argv)
 
 	// To avoid unnecessary latency, clients are permitted to send additional frames to the server immediately after sending the client connection preface, without waiting to receive the server connection preface. (sec3.5)
 	// SETTINGSフレームの送信を行う
+
 	std::map<uint16_t, uint32_t> setmap;
-	setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = 4096;
-	setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = 65535; 
+	ConnectionState* con_state = new ConnectionState();
+	con_state->getSettingsMap(setmap);
+
 	if(FrameProcessor::sendSettingsFrame(_ssl, setmap) < 0){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
