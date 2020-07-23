@@ -109,21 +109,31 @@ int main(int argc, char **argv)
 		//------------------------------------------------------------
 		//host = "www.yahoo.co.jp";
 		host = "www.google.com";
-		//host = "www.youtube.com";
-		//host = "www.nttdocomo.co.jp";  // ３、４回に1度正しくデータが帰ってきてる
 		//host = "www.nifty.com";
 		//host = "www.cloudflare.com";
 		//host = "www.google.co.jp";
 		//host = "www.atmarkit.co.jp";
 
-		//host = "rakuten.co.jp";      // Error Occured: alpn_len
-		//host = "www3.nhk.or.jp";     // Error Occured: alpn_len
-		//host = "www.amazon.co.jp";   // Error Occured: alpn_len
+		// WINDOW_UPDATEを実施しないと正しく帰ってこないサイト
+		//host = "www.youtube.com";
+		//host = "auctions.yahoo.co.jp";
 
+		// ALPNエラー
+		//host = "rakuten.co.jp";
+		//host = "www3.nhk.or.jp";
+		//host = "www.amazon.co.jp";
+
+		// HTTP/2未対応
+		//host = "www.goo.ne.jp";
+		//host = "www.livedoor.com";
+		//host = "github.com";
+
+		// SSL Connect Error
 		//host = "b.hatena.ne.jp";  // SSL_Connect error
-		//host = "www.goo.ne.jp";       // HTTP/2未対応
-		//host = "www.livedoor.com";    // HTTP/2未対応
-		//host = "github.com";          // HTTP/2未対応
+
+		// 不明なエラー
+		//host = "www.nttdocomo.co.jp";  // ３、４回に1度正しくデータが帰ってきてる
+
 		headers[":authority"] = host.c_str();
 	}
 
