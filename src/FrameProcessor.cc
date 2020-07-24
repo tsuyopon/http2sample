@@ -22,7 +22,7 @@ int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned i
 	unsigned char* headersframe;
 	unsigned char* framepayload;
 	int writelen;
-	framepayload = FrameProcessor::createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), 0x1 /* ACK */, 0 /*streamid*/);
+	framepayload = FrameProcessor::createFramePayload(8 /* ping length */, static_cast<char>(FrameType::PING), FLAGS_ACK, 0 /*streamid*/);
 	headersframe = static_cast<unsigned char*>(std::malloc(sizeof(unsigned char)*(BINARY_FRAME_LENGTH + 8)));
 	memcpy(headersframe, framepayload, BINARY_FRAME_LENGTH);
 	memset(headersframe+BINARY_FRAME_LENGTH, 0, 8);
@@ -41,7 +41,7 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 
 	// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
-	if( flags & 0x1 ){
+	if( flags & FLAGS_END_STREAM ){
 		 printf("\n*** END_STREAM Recieved\n");
 		return 1;
 	}
@@ -53,14 +53,14 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 int FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 
 	printf("=== HEADERS Frame Recieved ===\n");
-	if( flags & 0x1 ) printf("*** END_STREAM Recieved\n");
-	if( flags & 0x4 ) printf("*** END_HEADERS Recieved\n");
-	if( flags & 0x8 ) printf("*** PADDED Recieved\n");
-	if( flags & 0x20 ) printf("*** PRIORITY Recieved\n");
+	if( flags & FLAGS_END_STREAM ) printf("*** END_STREAM Recieved\n");
+	if( flags & FLAGS_END_HEADERS ) printf("*** END_HEADERS Recieved\n");
+	if( flags & FLAGS_PADDED ) printf("*** PADDED Recieved\n");
+	if( flags & FLAGS_PRIORITY ) printf("*** PRIORITY Recieved\n");
 	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	Hpack::readHpackHeaders(payload_length, p);
-	if( (flags & 0x1) && (flags & 0x4) ) return 1;
+	if( (flags & FLAGS_END_STREAM) && (flags & FLAGS_END_HEADERS) ) return 1;
 	return 0;
 
 }
@@ -133,7 +133,7 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 
 	// SETTINGSフレームへの応答
 	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
-	if( payload_length != 0 && flags != 0x01 /* ACK */ ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
+	if( payload_length != 0 && flags != FLAGS_ACK ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
 		printf("\n=== Send Settings Ack ===\n");
 		if(FrameProcessor::sendSettingsAck(ssl) < 0){
 			// TBD
@@ -167,7 +167,7 @@ void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_le
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	unsigned int size_increment;;
 	size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-	printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
+//	printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	printf("window_size_increment = %d\n", size_increment);
 }
 
@@ -206,7 +206,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
-		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
+//		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -248,9 +248,14 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
 				if(server){
+					// send headers frame
 					std::map<std::string, std::string> headers;
 					headers[":status"] = "200";
-					FrameProcessor::sendHeadersFrame(ssl, headers);
+					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+					str_state->setRecieveHeaders();
+
+					// send data frame
+
 					return 0;
 				}
 
@@ -274,9 +279,10 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				// TBD あとで移動
 				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
 				if(server == false && write_headers == 0){
-					if(sendHeadersFrame(ssl, headers) < 0){
+					if(sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
 						// TBD
 					}
+					str_state->setSendHeaders();
 					write_headers = 1;
 				}
 
@@ -419,7 +425,7 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 //------------------------------------------------------------
 int FrameProcessor::sendSettingsAck(SSL *ssl){
 	// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty. (sec6.5)
-	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, 0x04, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, static_cast<char>(FrameType::SETTINGS), FLAGS_ACK, 0x00, 0x00, 0x00, 0x00 };
 	printf("=== Start write SETTINGS frame ACK flags\n");
 	int writelen = BINARY_FRAME_LENGTH;
 	// MEMO: const unsigned char[9]は const_castで一気にunsigned char*へと変換できる。reinterpret_castは不要。
@@ -429,6 +435,9 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 	}
 	return 0;
 }
+
+//int FrameProcessor::sendDataFrame(SSL *ssl){
+//}
 
 //------------------------------------------------------------
 // HEADERSフレームの送信.
@@ -467,7 +476,7 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 //
 // See: https://tools.ietf.org/html/rfc7541#appendix-B
 //------------------------------------------------------------
-int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers){
+int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags){
 
 	std::list<std::pair<int /*length*/, unsigned char*>> pktHeaderList;    // pairの中には「パケット長、パケットへのポインタ」が含まれる
 	int total = 0;
@@ -481,7 +490,7 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 
 	// フレームを生成する
 	unsigned char* framepayload;
-	framepayload = createFramePayload(total, 0x01, 0x05, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
+	framepayload = createFramePayload(total, static_cast<char>(FrameType::HEADERS), flags, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
 
 	// パケット配列全体分のメモリを確保して、先で生成したフレームをコピー
 	unsigned char* headersframe;
@@ -514,7 +523,7 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 //------------------------------------------------------------
 int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code){
 	printf("\n=== Start write GOAWAY frame\n");
-	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, static_cast<char>(FrameType::GOAWAY), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 
 	// last_streamid
@@ -535,7 +544,7 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 	printf("\n=== Start write Window Update frame\n");
 
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
-	unsigned char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char windowUpdate[13] = { 0x00, 0x00, 0x04 , static_cast<char>(FrameType::WINDOW_UPDATE), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	_copyUint32Into4byte(&(windowUpdate[5]), streamid);        // streamidで上書き
 	_copyUint32Into4byte(&(windowUpdate[9]), increment_size);  // 最後の4byteはincrement_size
@@ -551,7 +560,7 @@ int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigne
 	printf("\n=== Start write RST_STREAM frame\n");
 
 	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
-	unsigned char rstStream[13] = { 0x00, 0x00, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char rstStream[13] = { 0x00, 0x00, 0x04, static_cast<char>(FrameType::RST_STREAM), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	_copyUint32Into4byte(&(rstStream[5]), streamid);
 	_copyUint32Into4byte(&(rstStream[9]), error_code);

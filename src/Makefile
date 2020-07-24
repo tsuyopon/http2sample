@@ -15,3 +15,11 @@ cscope:
 
 clean:
 	rm -rf *.o a.out main http2client http2server *.dSYM *.gch
+
+
+test1:
+	./http2client -u https://www.yahoo.co.jp/
+
+test2:
+	./http2client -u https://www.youtube.com/
+

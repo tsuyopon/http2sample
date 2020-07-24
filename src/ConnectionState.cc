@@ -109,7 +109,7 @@ unsigned int ConnectionState::get_peer_consumer_data_bytes() const {
 // この関数はDATAフレームの場合にしか呼び出してはいけません
 bool ConnectionState::incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length){
 	peer_consumer_data_bytes_ += payload_length;
-	if( peer_consumer_data_bytes_ >  50000 ){
+	if( peer_consumer_data_bytes_ >  50000 ){  // FIXME
 		return true;
 	}
 	return false;

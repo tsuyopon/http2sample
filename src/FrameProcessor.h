@@ -13,10 +13,16 @@
 
 class ConnectionState;
 
-//#define READ_BUF_SIZE 4096
-//#define BUF_SIZE 4097
 #define READ_BUF_SIZE 32768
 #define BUF_SIZE 32768
+#define BIT(num)                 ((unsigned int)1 << (num))
+
+// Frame Flags
+#define FLAGS_ACK                      BIT(0)   // defined in SETTINGS, PING
+#define FLAGS_END_STREAM               BIT(0)
+#define FLAGS_END_HEADERS              BIT(2)
+#define FLAGS_PADDED                   BIT(3)
+#define FLAGS_PRIORITY                 BIT(5)
 
 enum class FrameType {
 	DATA = 0x0,
@@ -48,7 +54,7 @@ public:
 	static unsigned char* createFramePayload (int length, char type, char flags, int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
-	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers);
+	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags);
 	static int sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code);
 	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size);
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);

@@ -19,10 +19,14 @@ private:
 //	// streamid
 //	unsigned int streamid_;
 //
-//	// pseudo-header
+//	// request pseudo-header (defined in sec8.1.2.3)
 //	std::string method_;
-//	std::string path_;
+//	std::string scheme_;
 //	std::string authority_;
+//	std::string path_;
+
+//	// response pseudo-header (defined in sec8.1.2.4)
+//	std::string status_;
 //
 //	// request & response headers
 //	std::map<std::string, std::string> request_headers_;
@@ -31,8 +35,8 @@ private:
 //	// flags related StreamState
 //	bool sendPP_;    // PP: PUSH_PROMISE
 //	bool recvPP_;
-//	bool sendH_;     // H: HEADER
-//	bool recvH_;
+	bool sendH_;     // H: HEADER
+	bool recvH_;
 //	bool sendES_;    // ES: END_STREAM flags
 //	bool recvES_;
 //	bool sendRS_;    // RS: RST_SREAM flags
@@ -46,6 +50,10 @@ private:
 
 public:
 	StreamState();
+	void setSendHeaders();
+	bool getSendHeaders() const;
+	void setRecieveHeaders();
+	bool setRecieveHeaders() const;
 	void reset_peer_consumer_data_bytes();
 	unsigned int get_peer_consumer_data_bytes() const;
 	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);
