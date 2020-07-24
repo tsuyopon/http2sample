@@ -19,19 +19,22 @@ public:
 	void getSettingsMap(std::map<uint16_t, uint32_t> &setmap);
 
 	// peer settings
-	void peer_set_header_table_size_(unsigned int table_size);
-	void peer_set_max_concurrent_streams(unsigned int concurrent);
-	void peer_set_initial_window_size(unsigned int window_size);
-	void peer_set_max_frame_size(unsigned int frame_size);
-	void peer_set_max_header_list_size(unsigned int header_list_size);
+	void set_peer_header_table_size_(unsigned int table_size);
+	void set_peer_max_concurrent_streams(unsigned int concurrent);
+	void set_peer_initial_window_size(unsigned int window_size);
+	void set_peer_max_frame_size(unsigned int frame_size);
+	void set_peer_max_header_list_size(unsigned int header_list_size);
 	void peer_getSettingsMap(std::map<uint16_t, uint32_t> &setmap);
+
+	void reset_peer_consumer_data_bytes();
+	unsigned int get_peer_consumer_data_bytes() const;
+	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);
 
 private:
 	/* manage*/
 	bool send_initial_frames_;
-	unsigned int total_consume_data_;       /* for flow control total data read */
 	unsigned int max_create_stream_id_;
-	unsigned int concurrent_num;
+	unsigned int concurrent_num_;
 
 	/* settings */
 	unsigned int header_table_size_;
@@ -48,5 +51,9 @@ private:
 	unsigned int peer_initial_window_size_;
 	unsigned int peer_max_frame_size_;
 	unsigned int peer_max_header_list_size_;
+
+	/* flow control */
+	unsigned int consumer_data_bytes_;
+	unsigned int peer_consumer_data_bytes_;
 
 }; 

@@ -11,6 +11,8 @@
 #include "ErrorCodes.h"
 #include "Hpack.h"
 
+class ConnectionState;
+
 //#define READ_BUF_SIZE 4096
 //#define BUF_SIZE 4097
 #define READ_BUF_SIZE 32768
@@ -29,7 +31,6 @@ enum class FrameType {
 	CONTINUATION = 0x9
 };
 
-
 enum SettingsId : uint16_t
 {
 	SETTINGS_HEADER_TABLE_SIZE = 0x1,
@@ -42,14 +43,14 @@ enum SettingsId : uint16_t
 
 class FrameProcessor {
 public:
-	static int readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers, bool server=false);
+	static int readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server=false);
 	// write
 	static unsigned char* createFramePayload (int length, char type, char flags, int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers);
 	static int sendGowayFrame(SSL *ssl);
-	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, unsigned int& increment_size);
+	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size);
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);
 	// read

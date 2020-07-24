@@ -198,7 +198,7 @@ int main(int argc, char **argv)
 
 				// FIXME: headersは空なので
 				std::map<std::string, std::string> headers;
-				if( FrameProcessor::readFrameLoop(ssl, headers, true) < 0){
+				if( FrameProcessor::readFrameLoop(con_state, ssl, headers, true) < 0){
 					return -1;
 				}
 

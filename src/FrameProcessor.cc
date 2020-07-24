@@ -1,5 +1,6 @@
 #include "FrameProcessor.h"
-
+#include "ConnectionState.h"
+#include "StreamState.h"
 
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
 	printf("=== PING Frame Recieved ===\n");
@@ -183,7 +184,7 @@ int FrameProcessor::_rcv_continuation_frame(SSL* ssl, unsigned int &streamid, un
 
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 // serverとclientから利用できるようにフラグをもつ
-int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
+int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
 
 	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
@@ -193,6 +194,9 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 	unsigned char buf[BUF_SIZE] = {0};
 	unsigned char* p = buf;
 	unsigned int consume_data = 0;
+	unsigned int recv_data = 0;
+
+	StreamState* str_state = new StreamState();
 
 	while(1){
 		type = 0;
@@ -216,19 +220,29 @@ int FrameProcessor::readFrameLoop(SSL* ssl, const std::map<std::string, std::str
 			case FrameType::DATA:
 				int ret;
 				consume_data += payload_length;
+				recv_data = payload_length;
 				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
 				if(ret == 1){
 					return 0;
 				}
 
-				// TODO: この数字はアテでとりあえず50000受信したら応答するようにしてしまっている、本来は取得した設定値を元にして算出するのが良い。
-				if( consume_data > 50000 ){
-					// Note: 以下のストリームレベルとコネクションレベル双方存在していれば、DATAフレームが途中で停止しない
+				// コネクションレベルのWINDOW_UPDATE通知判定
+				if(con_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
 					unsigned int connection_streamid = 0;
-					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, consume_data);             // ストリームレベルの通知
-					FrameProcessor::sendWindowUpdateFrame(ssl, connection_streamid, consume_data);  // コネクションレベルの通知
-					consume_data = 0;
+					FrameProcessor::sendWindowUpdateFrame(ssl, connection_streamid, con_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
+					con_state->reset_peer_consumer_data_bytes();
 				}
+
+				if(str_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
+					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, str_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
+					str_state->reset_peer_consumer_data_bytes();
+				}
+				// TODO: この数字はアテでとりあえず50000受信したら応答するようにしてしまっている、本来は取得した設定値を元にして算出するのが良い。
+//				if( consume_data > 50000 ){
+//					// Note: 以下のストリームレベルとコネクションレベル双方存在していれば、DATAフレームが途中で停止しない
+//					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, consume_data);             // ストリームレベルの通知
+//					consume_data = 0;
+//				}
 				break;
 				
 			case FrameType::HEADERS:
@@ -522,7 +536,7 @@ int FrameProcessor::sendGowayFrame(SSL *ssl){
 	return 0;
 }
 
-int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, unsigned int& increment_size){
+int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size){
 	printf("\n=== Start write Window Update frame\n");
 
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
