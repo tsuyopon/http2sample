@@ -96,7 +96,7 @@ int FrameProcessor::_rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsi
 
 	getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
 	unsigned int error_code;
-	error_code = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+	_copy4byteIntoUint32(&(p[0]), error_code);
 	printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
 	return 0;
 
@@ -122,8 +122,8 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 		//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
 		unsigned short identifier;
 		unsigned int value;
-		identifier = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
-		value = ( ( (p[2] & 0xFF) << 24 ) + ((p[3] & 0xFF) << 16 ) + ((p[4] & 0xFF) << 8 ) + ((p[5] & 0xFF) ));
+		_copy2byteIntoUint16(&(p[0]), identifier);
+		_copy4byteIntoUint32(&(p[2]), value);
 		printf("identifier=%d, value=%d\n", identifier, value);
 		p += 6;
 		setting_num--;
@@ -162,8 +162,8 @@ void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, u
 	unsigned int last_streamid;
 	unsigned int error_code;
 	// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
-	last_streamid = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
-	error_code = ( ( (p[4] & 0xFF) << 24 ) + ((p[5] & 0xFF) << 16 ) + ((p[6] & 0xFF) << 8 ) + ((p[7] & 0xFF) ));
+	_copy4byteIntoUint32(&(p[0]), last_streamid);
+	_copy4byteIntoUint32(&(p[4]), error_code);
 	printf("last_streamid = %d, error_code = %d message = %s\n", last_streamid, error_code, ErrorMessages[error_code].c_str());
 }
 
@@ -171,7 +171,7 @@ void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_le
 	printf("=== WINDOW_UPDATE Frame Recieved ===\n");
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	unsigned int size_increment;;
-	size_increment = ( ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) ));
+	_copy4byteIntoUint32(&(p[0]), size_increment);
 //	printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	printf("window_size_increment = %d\n", size_increment);
 }
@@ -715,6 +715,14 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 		if(print) printf("%s", p);
 	}
 	return ret;
+}
+
+void FrameProcessor::_copy2byteIntoUint16(unsigned char *p, uint16_t dst){
+	dst = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
+}
+
+void FrameProcessor::_copy4byteIntoUint32(unsigned char *p, unsigned int dst){
+	dst = ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) );
 }
 
 void FrameProcessor::_copyUint16Into2byte(unsigned char *p, uint16_t src){
