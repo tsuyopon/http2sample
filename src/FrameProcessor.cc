@@ -397,15 +397,8 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 	// add setting frame
 	int cnt = 0;
 	for (auto i = setmap.begin(); i != setmap.end(); ++i) {
-		// pack uint16_t
-		settingframe[9+6*cnt] = (i->first >> 8) & 0xff;
-		settingframe[10+6*cnt] = i->first & 0xff;
-
-		// pack uint32_t
-		settingframe[11+6*cnt] = (i->second >> 24) & 0xff;
-		settingframe[12+6*cnt] = (i->second >> 16) & 0xff;
-		settingframe[13+6*cnt] = (i->second >> 8) & 0xff;
-		settingframe[14+6*cnt] = i->second & 0xff;
+		_copyUint16Into2byte(&(settingframe[9+6*cnt]), i->first);  // pack uint16_t
+		_copyUint32Into4byte(&(settingframe[11+6*cnt]), i->second);  // pack uint32_t(int)
 		cnt++;
 	}
 
@@ -521,26 +514,18 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 //------------------------------------------------------------
 int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code){
 	printf("\n=== Start write GOAWAY frame\n");
-	char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 
 	// last_streamid
-	// FIXME: last_streamidは31bitなので先頭1bitが不要
-	goawayframe[9]  = (last_streamid >> 24) & 0xff;
-	goawayframe[10] = (last_streamid >> 16) & 0xff;
-	goawayframe[11] = (last_streamid >> 8) & 0xff;
-	goawayframe[12] = last_streamid & 0xff;
+	// FIXME: last_streamidは31bitなので先頭1bitが不要なのでその対応を検討するべき
+	_copyUint32Into4byte(&(goawayframe[9]), last_streamid);
 
 	// error_code
-	goawayframe[13] = (error_code >> 24) & 0xff;
-	goawayframe[14] = (error_code >> 16) & 0xff;
-	goawayframe[15] = (error_code >> 8) & 0xff;
-	goawayframe[16] = error_code & 0xff;
+	_copyUint32Into4byte(&(goawayframe[13]), error_code);
 
 	int writelen = sizeof(goawayframe);
-
-	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
-	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(goawayframe)), writelen) < 0 ){
+	if( FrameProcessor::writeFrame(ssl, goawayframe, writelen) < 0 ){
 		return -1;
 	}
 	return 0;
@@ -550,24 +535,13 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 	printf("\n=== Start write Window Update frame\n");
 
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
-	char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-	// streamidで上書き
-	windowUpdate[5] = (streamid >> 24) & 0xff;
-	windowUpdate[6] = (streamid >> 16) & 0xff;
-	windowUpdate[7] = (streamid >> 8) & 0xff;
-	windowUpdate[8] = streamid & 0xff;
-
-	// 最後の4byteはincrement size
-	windowUpdate[9] = (increment_size >> 24) & 0xff;
-	windowUpdate[10] = (increment_size >> 16) & 0xff;
-	windowUpdate[11] = (increment_size >> 8) & 0xff;
-	windowUpdate[12] = increment_size & 0xff;
+	_copyUint32Into4byte(&(windowUpdate[5]), streamid);        // streamidで上書き
+	_copyUint32Into4byte(&(windowUpdate[9]), increment_size);  // 最後の4byteはincrement_size
 
 	int writelen = sizeof(windowUpdate);
-
-	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
-	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(windowUpdate), writelen) < 0 ){
+	if( FrameProcessor::writeFrame(ssl, windowUpdate, writelen) < 0 ){
 		return -1;
 	}
 	return 0;
@@ -577,24 +551,13 @@ int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigne
 	printf("\n=== Start write RST_STREAM frame\n");
 
 	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
-	char rstStream[13] = { 0x00, 0x00, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	unsigned char rstStream[13] = { 0x00, 0x00, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-	// streamidで上書き
-	rstStream[5] = (streamid >> 24) & 0xff;
-	rstStream[6] = (streamid >> 16) & 0xff;
-	rstStream[7] = (streamid >> 8) & 0xff;
-	rstStream[8] = streamid & 0xff;
-
-	// 最後の4byteはincrement size
-	rstStream[9] = (error_code >> 24) & 0xff;
-	rstStream[10] = (error_code >> 16) & 0xff;
-	rstStream[11] = (error_code >> 8) & 0xff;
-	rstStream[12] = error_code & 0xff;
+	_copyUint32Into4byte(&(rstStream[5]), streamid);
+	_copyUint32Into4byte(&(rstStream[9]), error_code);
 
 	int writelen = sizeof(rstStream);
-
-	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
-	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(rstStream), writelen) < 0 ){
+	if( FrameProcessor::writeFrame(ssl, rstStream, writelen) < 0 ){
 		return -1;
 	}
 	return 0;
@@ -738,6 +701,20 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 		if(print) printf("%s", p);
 	}
 	return ret;
+}
+
+void FrameProcessor::_copyUint16Into2byte(unsigned char *p, uint16_t src){
+	p[0] = (src >> 8) & 0xff;
+	p[1] = src & 0xff;
+	return;
+}
+
+void FrameProcessor::_copyUint32Into4byte(unsigned char *p, unsigned int src){
+	p[0] = (src >> 24) & 0xff;
+	p[1] = (src >> 16) & 0xff;
+	p[2] = (src >> 8) & 0xff;
+	p[3] = src & 0xff;
+	return;
 }
 
 // フレーム長3byteを取得してunsigned intにコピーする
