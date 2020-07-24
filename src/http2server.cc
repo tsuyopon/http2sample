@@ -16,6 +16,7 @@
 #include "Definitions.h"
 #include "FrameProcessor.h"
 #include "ConnectionState.h"
+#include "DebugUtils.h"
 
 #define SD_BOTH SHUT_WR
 #define SOCKET int
@@ -166,6 +167,7 @@ int main(int argc, char **argv)
 
 		if (ret > 0) {
 			printf("ACCEPT SUCCESSED ret=%d\n", ret);
+			DebugUtils::createSslKeyLogFile(ssl, SSLKEYLOGFILE);
 			const unsigned char *data;
 			unsigned len = 0;
 			SSL_get0_alpn_selected(ssl, &data, &len);
@@ -180,8 +182,8 @@ int main(int argc, char **argv)
 
 				// FIXME: want read等の追加
 				// preface分チェック
-				SSL_read(ssl, buf, sizeof(CLIENT_CONNECTION_PREFACE));
-				if(memcmp(buf, CLIENT_CONNECTION_PREFACE, sizeof(CLIENT_CONNECTION_PREFACE)) == 0 ){
+				SSL_read(ssl, buf, strlen(CLIENT_CONNECTION_PREFACE));
+				if(memcmp(buf, CLIENT_CONNECTION_PREFACE, strlen(CLIENT_CONNECTION_PREFACE)) == 0 ){
 					printf("matched h2 preface\n");
 				} else {
 					// error
