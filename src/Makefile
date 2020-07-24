@@ -17,6 +17,9 @@ clean:
 	rm -rf *.o a.out main http2client http2server *.dSYM *.gch
 
 
+test0:
+	./http2client -u https://localhost/
+
 test1:
 	./http2client -u https://www.yahoo.co.jp/
 

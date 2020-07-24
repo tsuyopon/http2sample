@@ -48,6 +48,7 @@ public:
 	static unsigned char* createFramePayload(unsigned int length, char type, char flags, unsigned int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
+	static int sendDataFrame(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags);
 	static int sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code);
 	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size);

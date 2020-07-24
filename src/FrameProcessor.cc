@@ -6,6 +6,7 @@
 #include "Hpack.h"
 
 #include <list>
+#include <string.h>
 
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
 	printf("=== PING Frame Recieved ===\n");
@@ -256,10 +257,13 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 					// send headers frame
 					std::map<std::string, std::string> headers;
 					headers[":status"] = "200";
-					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+					headers["content-type"] = "text/plain";
+					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_HEADERS);
 					str_state->setRecieveHeaders();
 
 					// send data frame
+					FrameProcessor::sendDataFrame(ssl);
+					printf("Return OK\n");
 
 					return 0;
 				}
@@ -438,8 +442,16 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 	return 0;
 }
 
-//int FrameProcessor::sendDataFrame(SSL *ssl){
-//}
+int FrameProcessor::sendDataFrame(SSL *ssl){
+	const unsigned char dataFrame[BINARY_FRAME_LENGTH+2] = { 0x00, 0x00, 0x02 /* 2byte */, static_cast<char>(FrameType::DATA), FLAGS_END_STREAM, 0x00, 0x00, 0x00, 0x01 /* streamid */, 0x4f /* O */, 0x4b /* K */};
+	printf("=== Start write sendDataFrame\n");
+	int writelen = BINARY_FRAME_LENGTH+2; // FIXME
+	if( FrameProcessor::writeFrame(ssl, const_cast<unsigned char*>(dataFrame), writelen) < 0 ){
+		// TBD: errorとclose_socketは入れる
+		return -1;
+	}
+	return 0;
+}
 
 //------------------------------------------------------------
 // HEADERSフレームの送信.
