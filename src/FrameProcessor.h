@@ -49,7 +49,7 @@ public:
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers);
-	static int sendGowayFrame(SSL *ssl);
+	static int sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code);
 	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size);
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);

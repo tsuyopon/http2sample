@@ -203,7 +203,10 @@ int main(int argc, char **argv)
 				}
 
 				// GOAWAYフレームの送信
-				if(FrameProcessor::sendGowayFrame(ssl) < 0){
+				// FIXME: 複数のstreamに対応
+				const unsigned int last_streamid = 1;
+				const unsigned int error_code = 0;
+				if(FrameProcessor::sendGowayFrame(ssl, last_streamid, error_code) < 0){
 					return 0;
 				}
 

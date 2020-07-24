@@ -231,6 +231,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 					con_state->reset_peer_consumer_data_bytes();
 				}
 
+				// ストリームレベルのWINDOW_UPDATE通知判定
 				if(str_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
 					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, str_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
 					str_state->reset_peer_consumer_data_bytes();
@@ -307,6 +308,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 		}
 	}
+
 	return 0;  // FIXME
 }
 
@@ -517,10 +519,26 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 // フレームタイプは「0x07」
 // ストリームIDは「0x00」(コネクション全体に適用するため)
 //------------------------------------------------------------
-int FrameProcessor::sendGowayFrame(SSL *ssl){
+int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code){
 	printf("\n=== Start write GOAWAY frame\n");
-	const char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x00 };
+	char goawayframe[17] = { 0x00, 0x00, 0x08, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+
+
+	// last_streamid
+	// FIXME: last_streamidは31bitなので先頭1bitが不要
+	goawayframe[9]  = (last_streamid >> 24) & 0xff;
+	goawayframe[10] = (last_streamid >> 16) & 0xff;
+	goawayframe[11] = (last_streamid >> 8) & 0xff;
+	goawayframe[12] = last_streamid & 0xff;
+
+	// error_code
+	goawayframe[13] = (error_code >> 24) & 0xff;
+	goawayframe[14] = (error_code >> 16) & 0xff;
+	goawayframe[15] = (error_code >> 8) & 0xff;
+	goawayframe[16] = error_code & 0xff;
+
 	int writelen = sizeof(goawayframe);
+
 	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
 	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(const_cast<char*>(goawayframe)), writelen) < 0 ){
 		return -1;
@@ -534,8 +552,6 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
 	char windowUpdate[13] = { 0x00, 0x00, 0x04 , 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-	int writelen = sizeof(windowUpdate);
-
 	// streamidで上書き
 	windowUpdate[5] = (streamid >> 24) & 0xff;
 	windowUpdate[6] = (streamid >> 16) & 0xff;
@@ -547,6 +563,8 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 	windowUpdate[10] = (increment_size >> 16) & 0xff;
 	windowUpdate[11] = (increment_size >> 8) & 0xff;
 	windowUpdate[12] = increment_size & 0xff;
+
+	int writelen = sizeof(windowUpdate);
 
 	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
 	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(windowUpdate), writelen) < 0 ){
@@ -561,8 +579,6 @@ int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigne
 	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
 	char rstStream[13] = { 0x00, 0x00, 0x04, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
-	int writelen = sizeof(rstStream);
-
 	// streamidで上書き
 	rstStream[5] = (streamid >> 24) & 0xff;
 	rstStream[6] = (streamid >> 16) & 0xff;
@@ -574,6 +590,8 @@ int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigne
 	rstStream[10] = (error_code >> 16) & 0xff;
 	rstStream[11] = (error_code >> 8) & 0xff;
 	rstStream[12] = error_code & 0xff;
+
+	int writelen = sizeof(rstStream);
 
 	// MEMO: 一旦constを除去して、その後char*からunsigned char*への変換が必要。(一気にreinterpret_castやconst_castでの変換はできない)
 	if( FrameProcessor::writeFrame(ssl, reinterpret_cast<unsigned char *>(rstStream), writelen) < 0 ){
