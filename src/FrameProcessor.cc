@@ -95,7 +95,7 @@ int FrameProcessor::_rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsi
 	}
 
 	getFrameContentsIntoBuffer(ssl, payload_length /* 4 */, p);
-	unsigned int error_code;
+	unsigned int error_code = 0;
 	_copy4byteIntoUint32(&(p[0]), error_code);
 	printf("error_code = %d, message = %s\n", error_code, ErrorMessages[error_code].c_str());
 	return 0;
@@ -120,8 +120,8 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 	// SETTINGSフレームで取得した設定値があれば、表示する。
 	while(setting_num){
 		//printf("%02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5]);
-		unsigned short identifier;
-		unsigned int value;
+		unsigned short identifier = 0;
+		unsigned int value = 0;
 		_copy2byteIntoUint16(&(p[0]), identifier);
 		_copy4byteIntoUint32(&(p[2]), value);
 		printf("identifier=%d, value=%d\n", identifier, value);
@@ -159,8 +159,8 @@ void FrameProcessor::_rcv_push_promise_frame(SSL* ssl, unsigned int &payload_len
 void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
 	printf("=== GOAWAY Frame Recieved ===\n");
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
-	unsigned int last_streamid;
-	unsigned int error_code;
+	unsigned int last_streamid = 0;
+	unsigned int error_code = 0;
 	// GOAWAYパケットの最初の4byteはlast_stream_id、次の4byteはerror_code、その後additional debug dataが続く
 	_copy4byteIntoUint32(&(p[0]), last_streamid);
 	_copy4byteIntoUint32(&(p[4]), error_code);
@@ -170,7 +170,7 @@ void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, u
 void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
 	printf("=== WINDOW_UPDATE Frame Recieved ===\n");
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
-	unsigned int size_increment;;
+	unsigned int size_increment = 0;
 	_copy4byteIntoUint32(&(p[0]), size_increment);
 //	printf("%02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	printf("window_size_increment = %d\n", size_increment);
@@ -332,7 +332,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
  *	(lengthにはフレームペイロード自体の9byteは含まれないことに注意すること)
  */
 // FIXME: StreamIDは31なのにintで定義してる
-unsigned char* FrameProcessor::createFramePayload (int length, char type, char flags, int streamid){
+unsigned char* FrameProcessor::createFramePayload(unsigned int length, char type, char flags, unsigned int streamid){
 	unsigned char *frame;
 	frame = static_cast<unsigned char*>(std::malloc(BINARY_FRAME_LENGTH));	 // BINARY_FRAME_LENGTH = 9 byte
 
@@ -354,10 +354,7 @@ unsigned char* FrameProcessor::createFramePayload (int length, char type, char f
 	// R: A reserved 1-bit field. The semantics of this bit are undefined, and the bit MUST remain unset (0x0) when sending and MUST be ignored when receiving. (sec4.1)
 
 	// intを各種バイトずつ敷き詰める。memcpyで4byteコピーを指定すると先頭ビットに1が配置されてしまうようでうまくいかない
-	frame[5] = ((streamid>>24)&0xFF);
-	frame[6] = ((streamid>>16)&0xFF);
-	frame[7] = ((streamid>>8)&0xFF);
-	frame[8] = ((streamid)&0xFF);
+	_copyUint32Into4byte((&frame[5]), streamid);
 
 	return frame;
 }
@@ -484,7 +481,7 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags){
 
 	std::list<std::pair<int /*length*/, unsigned char*>> pktHeaderList;    // pairの中には「パケット長、パケットへのポインタ」が含まれる
-	int total = 0;
+	unsigned int total = 0;
     for (const auto& [key, value] : headers){
 		unsigned char* query;
 		int ret_bytes;

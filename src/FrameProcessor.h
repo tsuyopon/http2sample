@@ -45,7 +45,7 @@ class FrameProcessor {
 public:
 	static int readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server=false);
 	// write
-	static unsigned char* createFramePayload (int length, char type, char flags, int streamid);
+	static unsigned char* createFramePayload(unsigned int length, char type, char flags, unsigned int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags);
