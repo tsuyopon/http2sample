@@ -2,14 +2,8 @@
 
 #include <string>
 #include <map>
-#include <list>
-
 #include <openssl/ssl.h>
 #include <openssl/err.h>
-
-#include "Definitions.h"
-#include "ErrorCodes.h"
-#include "Hpack.h"
 
 class ConnectionState;
 

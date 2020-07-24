@@ -1,6 +1,11 @@
 #include "FrameProcessor.h"
 #include "ConnectionState.h"
 #include "StreamState.h"
+#include "Definitions.h"
+#include "ErrorCodes.h"
+#include "Hpack.h"
+
+#include <list>
 
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
 	printf("=== PING Frame Recieved ===\n");
