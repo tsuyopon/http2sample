@@ -637,10 +637,10 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 		if (b) break;
 	}
 
-	FrameProcessor::to_framedata3byte(p, payload_length);
-	FrameProcessor::to_frametype(p, type);
-	FrameProcessor::to_frameflags(p, flags);
-	FrameProcessor::to_framestreamid(p, streamid);
+	_to_framedata3byte(p, payload_length);
+	_to_frametype(p, type);
+	_to_frameflags(p, flags);
+	_to_framestreamid(p, streamid);
 //	printf("streamid = %d\n\n", streamid);
 
 	return ret;
@@ -723,8 +723,8 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 }
 
 // フレーム長3byteを取得してunsigned intにコピーする
-unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned int &n){
-//	printf("to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
+unsigned char* FrameProcessor::_to_framedata3byte(unsigned char * &p, unsigned int &n){
+//	printf("_to_framedata3byte: %02x %02x %02x\n", p[0], p[1], p[2]);
 	u_char buf[4] = {0};	  // bufを4byte初期化
 	memcpy(&(buf[1]), p, 3);  // bufの2byte目から4byteめまでをコピー
 	memcpy(&n, buf, 4);		  // buf領域を全てコピー
@@ -734,25 +734,25 @@ unsigned char* FrameProcessor::to_framedata3byte(unsigned char * &p, unsigned in
 }
 
 // パケットからフレームタイプを取得する
-void FrameProcessor::to_frametype(unsigned char * &p, unsigned char *type){
-//	printf("to_frametype: %02x\n", p[0]);
+void FrameProcessor::_to_frametype(unsigned char * &p, unsigned char *type){
+//	printf("_to_frametype: %02x\n", p[0]);
 	*type = p[0];
 	p++;
 }
 
 // パケットからフレームタイプのflagsを取得する
-void FrameProcessor::to_frameflags(unsigned char * &p, unsigned char *flags){	// to_frametypeと共通
-//	printf("to_frameflags: %02x\n", p[0]);
+void FrameProcessor::_to_frameflags(unsigned char * &p, unsigned char *flags){	// _to_frametypeと共通
+//	printf("_to_frameflags: %02x\n", p[0]);
 	*flags = p[0];
 	p++;
 }
 
 // パケットからstreamidを取得する
-void FrameProcessor::to_framestreamid(unsigned char * &p, unsigned int& streamid){
+void FrameProcessor::_to_framestreamid(unsigned char * &p, unsigned int& streamid){
 	streamid = 0;
 	// see: How to make int from char[4]? (in C)
 	//	 https://stackoverflow.com/questions/17602229/how-to-make-int-from-char4-in-c/17602505
-//	printf("to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
+//	printf("_to_framestreamid: %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3]);
 	streamid = (p[0] << 24) | (p[1] << 16) | (p[2] << 8) | (p[3]);
 	p += 4;
 }

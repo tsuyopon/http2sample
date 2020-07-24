@@ -57,11 +57,12 @@ public:
 	static int readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);
 	static int getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* retbuf);
 	static int readFrameContents(SSL* ssl, unsigned int &payload_length, int print);
-	static unsigned char* to_framedata3byte(unsigned char * &p, unsigned int &n);
-	static void to_frametype(unsigned char * &p, unsigned char *type);
-	static void to_frameflags(unsigned char * &p, unsigned char *flags);
-	static void to_framestreamid(unsigned char * &p, unsigned int& streamid);
+
 private:
+	static unsigned char* _to_framedata3byte(unsigned char * &p, unsigned int &n);
+	static void _to_frametype(unsigned char * &p, unsigned char *type);
+	static void _to_frameflags(unsigned char * &p, unsigned char *flags);
+	static void _to_framestreamid(unsigned char * &p, unsigned int& streamid);
 	// 必要最小限の引数だけを追加
 	static int _rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
 	static int _rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags);
