@@ -193,7 +193,6 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 	unsigned int streamid = 0;
 	unsigned char buf[BUF_SIZE] = {0};
 	unsigned char* p = buf;
-	unsigned int consume_data = 0;
 	unsigned int recv_data = 0;
 
 	StreamState* str_state = new StreamState();
@@ -219,7 +218,6 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				break;
 			case FrameType::DATA:
 				int ret;
-				consume_data += payload_length;
 				recv_data = payload_length;
 				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
 				if(ret == 1){
@@ -237,12 +235,6 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, str_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
 					str_state->reset_peer_consumer_data_bytes();
 				}
-				// TODO: この数字はアテでとりあえず50000受信したら応答するようにしてしまっている、本来は取得した設定値を元にして算出するのが良い。
-//				if( consume_data > 50000 ){
-//					// Note: 以下のストリームレベルとコネクションレベル双方存在していれば、DATAフレームが途中で停止しない
-//					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, consume_data);             // ストリームレベルの通知
-//					consume_data = 0;
-//				}
 				break;
 				
 			case FrameType::HEADERS:
