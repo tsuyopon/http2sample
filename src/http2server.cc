@@ -98,7 +98,8 @@ int main(int argc, char **argv)
 
 	// グローバルコンテキスト初期化.
 	// Implementations of HTTP/2 MUST use TLS version 1.2 [TLS12] or higher for HTTP/2 over TLS. (sec9.2)
-	const SSL_METHOD *meth = TLS_server_method();   // FIXME: 1.3も使えるようにあとで修正する
+	//const SSL_METHOD *meth = TLS_server_method();   // FIXME: これでTLS1.2が使えるがSSLKEYLOGが未対応
+	const SSL_METHOD *meth = TLSv1_2_method();   // FIXME: 1.3も使えるようにあとで修正する
 	ctx = SSL_CTX_new(meth);
 
 	// ALPNが指定された場合に呼ばれるコールバックを登録します。
