@@ -37,10 +37,10 @@ private:
 //	bool recvPP_;
 	bool sendH_;     // H: HEADER
 	bool recvH_;
-//	bool sendES_;    // ES: END_STREAM flags
-//	bool recvES_;
-//	bool sendRS_;    // RS: RST_SREAM flags
-//	bool recvRS_;
+	bool sendES_;    // ES: END_STREAM flags
+	bool recvES_;
+	bool sendRS_;    // RS: RST_SREAM flags
+	bool recvRS_;
 //
 //	// state
 //	Http2State state;
@@ -53,7 +53,16 @@ public:
 	void setSendHeaders();
 	bool getSendHeaders() const;
 	void setRecieveHeaders();
-	bool setRecieveHeaders() const;
+	bool getRecieveHeaders() const;
+	void setSendEndStream();
+	bool getSendEndStream() const;
+	void setRecieveEndStream();
+	bool getRecieveEndStream() const;
+	void setSendRstStream();
+	bool getSendRstStream() const;
+	void setRecieveRstStream();
+	bool getRecieveRstStream() const;
+
 	void reset_peer_consumer_data_bytes();
 	unsigned int get_peer_consumer_data_bytes() const;
 	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);

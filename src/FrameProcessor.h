@@ -73,7 +73,7 @@ private:
 	// 必要最小限の引数だけを追加
 	static int _rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
 	static int _rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags);
-	static int _rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
+	static int _rcv_headers_frame(ConnectionState* con_state, SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
 	static void _rcv_priority_frame(SSL* ssl, unsigned int &payload_length);
 	static int _rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p);
 	static int _rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);

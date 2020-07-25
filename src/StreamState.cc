@@ -1,6 +1,6 @@
 #include "StreamState.h"
 
-StreamState::StreamState(): sendH_(false), recvH_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0) {}
+StreamState::StreamState(): sendH_(false), recvH_(false), sendES_(false), recvES_(false), sendRS_(false), recvRS_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0) {}
 
 void StreamState::setSendHeaders() { 
 	sendH_ = true;
@@ -14,8 +14,40 @@ void StreamState::setRecieveHeaders() {
 	recvH_ = true;
 }
 
-bool StreamState::setRecieveHeaders() const { 
+bool StreamState::getRecieveHeaders() const { 
 	return recvH_;
+}
+
+void StreamState::setSendEndStream() { 
+	sendES_ = true;
+}
+
+bool StreamState::getSendEndStream() const { 
+	return sendES_;
+}
+
+void StreamState::setRecieveEndStream() { 
+	recvES_ = true;
+}
+
+bool StreamState::getRecieveEndStream() const { 
+	return recvES_;
+}
+
+void StreamState::setSendRstStream() { 
+	sendRS_ = true;
+}
+
+bool StreamState::getSendRstStream() const { 
+	return sendRS_;
+}
+
+void StreamState::setRecieveRstStream() {
+	recvRS_ = true;
+}
+
+bool StreamState::getRecieveRstStream() const {
+	return recvRS_;
 }
 
 void StreamState::reset_peer_consumer_data_bytes() { 

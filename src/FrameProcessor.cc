@@ -67,7 +67,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			case FrameType::HEADERS:
 
 				// クライアントで、END_HEADERSを受信したら終了
-				if( !server && FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p) == 1){
+				if( !server && FrameProcessor::_rcv_headers_frame(con_state, ssl, payload_length, flags, p) == 1){
 					printf("recieved 1 from _rcv_headers_frame\n");
 					return 0;
 				}
@@ -76,6 +76,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				if(server){
 //					FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
 					// send headers frame
+
 					std::map<std::string, std::string> headers;
 					headers[":status"] = "200";
 					headers["content-type"] = "text/plain";
@@ -197,7 +198,7 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 
 	// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
 	if( flags & FLAGS_END_STREAM ){
-		 printf("\n*** END_STREAM Recieved\n");
+		 printf("\n\tEND_STREAM Recieved\n");
 		return 1;
 	}
 
@@ -205,13 +206,13 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 
 }
 
-int FrameProcessor::_rcv_headers_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+int FrameProcessor::_rcv_headers_frame(ConnectionState* con_state, SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 
 	printf("=== HEADERS Frame Recieved ===\n");
-	if( flags & FLAGS_END_STREAM ) printf("*** END_STREAM Recieved\n");
-	if( flags & FLAGS_END_HEADERS ) printf("*** END_HEADERS Recieved\n");
-	if( flags & FLAGS_PADDED ) printf("*** PADDED Recieved\n");
-	if( flags & FLAGS_PRIORITY ) printf("*** PRIORITY Recieved\n");
+	if( flags & FLAGS_END_STREAM ) printf("\tEND_STREAM Recieved\n");
+	if( flags & FLAGS_END_HEADERS ) printf("\tEND_HEADERS Recieved\n");
+	if( flags & FLAGS_PADDED ) printf("\tPADDED Recieved\n");
+	if( flags & FLAGS_PRIORITY ) printf("\tPRIORITY Recieved\n");
 	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	Hpack::readHpackHeaders(payload_length, p);
