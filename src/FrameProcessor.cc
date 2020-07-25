@@ -8,6 +8,147 @@
 #include <list>
 #include <string.h>
 
+// 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
+// serverとclientから利用できるようにフラグをもつ
+int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
+
+	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
+	unsigned int payload_length = 0;
+	unsigned char type = 0;
+	unsigned char flags = 0;
+	unsigned int streamid = 0;
+	unsigned char buf[BUF_SIZE] = {0};
+	unsigned char* p = buf;
+	unsigned int recv_data = 0;
+
+	StreamState* str_state = new StreamState();
+
+	while(1){
+		type = 0;
+		flags = 0;
+		memset(buf, 0, BUF_SIZE);
+
+//		printf("\n\nreadFrameLoop: loop start\n");
+		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
+			return 0;
+		}
+//		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
+
+		switch(static_cast<FrameType>(type)){
+			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
+			case FrameType::PING:
+				if( FrameProcessor::_rcv_ping_frame(ssl, streamid, payload_length) < 0 ){
+					// FIXME
+					return -1;
+				}
+				break;
+			case FrameType::DATA:
+				int ret;
+				recv_data = payload_length;
+				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
+				if(ret == 1){
+					return 0;
+				}
+
+				// コネクションレベルのWINDOW_UPDATE通知判定
+				if(con_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
+					unsigned int connection_streamid = 0;
+					FrameProcessor::sendWindowUpdateFrame(ssl, connection_streamid, con_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
+					con_state->reset_peer_consumer_data_bytes();
+				}
+
+				// ストリームレベルのWINDOW_UPDATE通知判定
+				if(str_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
+					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, str_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
+					str_state->reset_peer_consumer_data_bytes();
+				}
+				break;
+				
+			case FrameType::HEADERS:
+
+				// クライアントで、END_HEADERSを受信したら終了
+				if( !server && FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p) == 1){
+					printf("recieved 1 from _rcv_headers_frame\n");
+					return 0;
+				}
+
+				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
+				if(server){
+//					FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
+					// send headers frame
+					std::map<std::string, std::string> headers;
+					headers[":status"] = "200";
+					headers["content-type"] = "text/plain";
+					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_HEADERS);
+					str_state->setRecieveHeaders();
+
+					// send data frame
+					FrameProcessor::sendDataFrame(ssl);
+					printf("Return OK\n");
+
+					return 0;
+				}
+
+				break;
+
+			case FrameType::PRIORITY:
+				FrameProcessor::_rcv_priority_frame(ssl, payload_length);
+				break;
+
+			case FrameType::RST_STREAM:
+				if(FrameProcessor::_rcv_rst_stream_frame(ssl, streamid, payload_length, p) < 0){
+					// TBD: error
+				}
+				return static_cast<int>(FrameType::RST_STREAM);
+
+			case FrameType::SETTINGS:
+				if(FrameProcessor::_rcv_settings_frame(ssl, streamid, payload_length, flags, p) < 0){
+					// TBD: error
+				}
+
+				// TBD あとで移動
+				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
+				if(server == false && write_headers == 0){
+					if(sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
+						// TBD
+					}
+					str_state->setSendHeaders();
+					write_headers = 1;
+				}
+
+				break;
+
+			case FrameType::PUSH_PROMISE:
+				FrameProcessor::_rcv_push_promise_frame(ssl, payload_length);
+				break;
+
+			case FrameType::GOAWAY:
+				FrameProcessor::_rcv_goaway_frame(ssl, payload_length, p);
+				return 0;
+
+			case FrameType::WINDOW_UPDATE:
+				FrameProcessor::_rcv_window_update_frame(ssl, payload_length, p);
+				break;
+
+			case FrameType::CONTINUATION:
+				if(FrameProcessor::_rcv_continuation_frame(ssl, streamid, payload_length) < 0 ){
+					// TBD: error
+				}
+				break;
+
+			/* how to handle unknown frame type */
+			default:
+				printf("=== UNKNOWN Frame Recieved ===\n");
+				FrameProcessor::readFrameContents(ssl, payload_length, 1);
+				break;
+
+		}
+	}
+
+	return 0;  // FIXME
+}
+
+
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
 	printf("=== PING Frame Recieved ===\n");
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
@@ -186,146 +327,6 @@ int FrameProcessor::_rcv_continuation_frame(SSL* ssl, unsigned int &streamid, un
 	}
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	return 0;
-}
-
-// 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
-// serverとclientから利用できるようにフラグをもつ
-int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
-
-	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
-	unsigned int payload_length = 0;
-	unsigned char type = 0;
-	unsigned char flags = 0;
-	unsigned int streamid = 0;
-	unsigned char buf[BUF_SIZE] = {0};
-	unsigned char* p = buf;
-	unsigned int recv_data = 0;
-
-	StreamState* str_state = new StreamState();
-
-	while(1){
-		type = 0;
-		flags = 0;
-		memset(buf, 0, BUF_SIZE);
-
-//		printf("\n\nreadFrameLoop: loop start\n");
-		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
-			return 0;
-		}
-//		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
-
-		switch(static_cast<FrameType>(type)){
-			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
-			case FrameType::PING:
-				if( FrameProcessor::_rcv_ping_frame(ssl, streamid, payload_length) < 0 ){
-					// FIXME
-					return -1;
-				}
-				break;
-			case FrameType::DATA:
-				int ret;
-				recv_data = payload_length;
-				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
-				if(ret == 1){
-					return 0;
-				}
-
-				// コネクションレベルのWINDOW_UPDATE通知判定
-				if(con_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
-					unsigned int connection_streamid = 0;
-					FrameProcessor::sendWindowUpdateFrame(ssl, connection_streamid, con_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
-					con_state->reset_peer_consumer_data_bytes();
-				}
-
-				// ストリームレベルのWINDOW_UPDATE通知判定
-				if(str_state->incrementPeerPayloadAndCheckWindowUpdateIsNeeded(recv_data)){
-					FrameProcessor::sendWindowUpdateFrame(ssl, streamid, str_state->get_peer_consumer_data_bytes());  // コネクションレベルの通知
-					str_state->reset_peer_consumer_data_bytes();
-				}
-				break;
-				
-			case FrameType::HEADERS:
-
-				// クライアントで、END_HEADERSを受信したら終了
-				if( !server && FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p) == 1){
-					printf("recieved 1 from _rcv_headers_frame\n");
-					return 0;
-				}
-
-				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
-				if(server){
-//					FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
-					// send headers frame
-					std::map<std::string, std::string> headers;
-					headers[":status"] = "200";
-					headers["content-type"] = "text/plain";
-					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_HEADERS);
-					str_state->setRecieveHeaders();
-
-					// send data frame
-					FrameProcessor::sendDataFrame(ssl);
-					printf("Return OK\n");
-
-					return 0;
-				}
-
-				break;
-
-			case FrameType::PRIORITY:
-				FrameProcessor::_rcv_priority_frame(ssl, payload_length);
-				break;
-
-			case FrameType::RST_STREAM:
-				if(FrameProcessor::_rcv_rst_stream_frame(ssl, streamid, payload_length, p) < 0){
-					// TBD: error
-				}
-				return static_cast<int>(FrameType::RST_STREAM);
-
-			case FrameType::SETTINGS:
-				if(FrameProcessor::_rcv_settings_frame(ssl, streamid, payload_length, flags, p) < 0){
-					// TBD: error
-				}
-
-				// TBD あとで移動
-				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
-				if(server == false && write_headers == 0){
-					if(sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
-						// TBD
-					}
-					str_state->setSendHeaders();
-					write_headers = 1;
-				}
-
-				break;
-
-			case FrameType::PUSH_PROMISE:
-				FrameProcessor::_rcv_push_promise_frame(ssl, payload_length);
-				break;
-
-			case FrameType::GOAWAY:
-				FrameProcessor::_rcv_goaway_frame(ssl, payload_length, p);
-				return 0;
-
-			case FrameType::WINDOW_UPDATE:
-				FrameProcessor::_rcv_window_update_frame(ssl, payload_length, p);
-				break;
-
-			case FrameType::CONTINUATION:
-				if(FrameProcessor::_rcv_continuation_frame(ssl, streamid, payload_length) < 0 ){
-					// TBD: error
-				}
-				break;
-
-			/* how to handle unknown frame type */
-			default:
-				printf("=== UNKNOWN Frame Recieved ===\n");
-				FrameProcessor::readFrameContents(ssl, payload_length, 1);
-				break;
-
-		}
-	}
-
-	return 0;  // FIXME
 }
 
 //////////////////////////
