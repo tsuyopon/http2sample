@@ -254,6 +254,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
 				if(server){
+//					FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
 					// send headers frame
 					std::map<std::string, std::string> headers;
 					headers[":status"] = "200";
@@ -726,21 +727,21 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 	return ret;
 }
 
-void FrameProcessor::_copy2byteIntoUint16(unsigned char *p, uint16_t dst){
+void FrameProcessor::_copy2byteIntoUint16(unsigned char *p, uint16_t &dst){
 	dst = ((p[0] & 0xFF) << 8 ) + (p[1] & 0xFF);
 }
 
-void FrameProcessor::_copy4byteIntoUint32(unsigned char *p, unsigned int dst){
+void FrameProcessor::_copy4byteIntoUint32(unsigned char *p, unsigned int &dst){
 	dst = ( (p[0] & 0xFF) << 24 ) + ((p[1] & 0xFF) << 16 ) + ((p[2] & 0xFF) << 8 ) + ((p[3] & 0xFF) );
 }
 
-void FrameProcessor::_copyUint16Into2byte(unsigned char *p, uint16_t src){
+void FrameProcessor::_copyUint16Into2byte(unsigned char *p, const uint16_t &src){
 	p[0] = (src >> 8) & 0xff;
 	p[1] = src & 0xff;
 	return;
 }
 
-void FrameProcessor::_copyUint32Into4byte(unsigned char *p, unsigned int src){
+void FrameProcessor::_copyUint32Into4byte(unsigned char *p, const unsigned int &src){
 	p[0] = (src >> 24) & 0xff;
 	p[1] = (src >> 16) & 0xff;
 	p[2] = (src >> 8) & 0xff;

@@ -60,10 +60,10 @@ public:
 	static int readFrameContents(SSL* ssl, unsigned int &payload_length, int print);
 
 private:
-	static void _copy2byteIntoUint16(unsigned char *p, uint16_t dst);
-	static void _copy4byteIntoUint32(unsigned char *p, unsigned int dst);
-	static void _copyUint16Into2byte(unsigned char *p, uint16_t src);
-	static void _copyUint32Into4byte(unsigned char *p, unsigned int src);
+	static void _copy2byteIntoUint16(unsigned char *p, uint16_t &dst);
+	static void _copy4byteIntoUint32(unsigned char *p, unsigned int &dst);
+	static void _copyUint16Into2byte(unsigned char *p, const uint16_t &src);
+	static void _copyUint32Into4byte(unsigned char *p, const unsigned int &src);
 	static unsigned char* _to_framedata3byte(unsigned char * &p, unsigned int &n);
 	static void _to_frametype(unsigned char * &p, unsigned char *type);
 	static void _to_frameflags(unsigned char * &p, unsigned char *flags);
