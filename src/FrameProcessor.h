@@ -28,7 +28,9 @@ enum class FrameType {
 	PING = 0x6,
 	GOAWAY = 0x7,
 	WINDOW_UPDATE = 0x8,
-	CONTINUATION = 0x9
+	CONTINUATION = 0x9,
+	ALTSVC = 0xa, /* RFC7838 */
+	ORIGIN = 0xc  /* RFC8336 */
 };
 
 enum SettingsId : uint16_t
@@ -79,4 +81,6 @@ private:
 	static void _rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
 	static void _rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
 	static int _rcv_continuation_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
+	static void _rcv_altsvc_frame(SSL* ssl, unsigned int &payload_length);
+	static void _rcv_origin_frame(SSL* ssl, unsigned int &payload_length);
 };

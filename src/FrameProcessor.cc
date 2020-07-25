@@ -136,6 +136,14 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				}
 				break;
 
+			case FrameType::ALTSVC:
+				FrameProcessor::_rcv_altsvc_frame(ssl, payload_length);
+				break;
+
+			case FrameType::ORIGIN:
+				FrameProcessor::_rcv_origin_frame(ssl, payload_length);
+				break;
+
 			/* how to handle unknown frame type */
 			default:
 				printf("=== UNKNOWN Frame Recieved ===\n");
@@ -327,6 +335,20 @@ int FrameProcessor::_rcv_continuation_frame(SSL* ssl, unsigned int &streamid, un
 	}
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	return 0;
+}
+
+void FrameProcessor::_rcv_altsvc_frame(SSL* ssl, unsigned int &payload_length){
+	printf("=== ALTSVC Frame Recieved ===\n");
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	/* do nothing */
+	// フレームだけ読み飛ばす
+}
+
+void FrameProcessor::_rcv_origin_frame(SSL* ssl, unsigned int &payload_length){
+	printf("=== ORIGIN Frame Recieved ===\n");
+	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	/* do nothing */
+	// フレームだけ読み飛ばす
 }
 
 //////////////////////////
