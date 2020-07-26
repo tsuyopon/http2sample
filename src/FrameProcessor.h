@@ -58,7 +58,7 @@ public:
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);
 	// read
-	static int readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);
+	static int readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid);
 	static int getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* retbuf);
 	static int readFrameContents(SSL* ssl, unsigned int &payload_length, int print);
 
@@ -81,7 +81,7 @@ private:
 	static void _rcv_push_promise_frame(SSL* ssl, unsigned int &payload_length);
 	static void _rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
 	static void _rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p);
-	static int _rcv_continuation_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
+	static int _rcv_continuation_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
 	static void _rcv_altsvc_frame(SSL* ssl, unsigned int &payload_length);
 	static void _rcv_origin_frame(SSL* ssl, unsigned int &payload_length);
 };

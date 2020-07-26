@@ -65,15 +65,24 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				break;
 				
 			case FrameType::HEADERS:
+			{
+				printf("=== HEADERS FRAME Recieved ===\n");
+				// HEADERSフレームの2度目の受信をエラーにする
+				if( str_state->getRecieveHeaders() == true ){
+					// FIXME
+					printf("ERROR====================");
+				}
 
 				// クライアントで、END_HEADERSを受信したら終了
-				if( !server && FrameProcessor::_rcv_headers_frame(str_state, ssl, payload_length, flags, p) == 1){
-					printf("recieved 1 from _rcv_headers_frame\n");
+				int retdata = FrameProcessor::_rcv_headers_frame(str_state, ssl, payload_length, flags, p);
+				if( !server && retdata == 1){
+					printf("Client: recieved 1 from _rcv_headers_frame\n");
 					return 0;
 				}
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
-				if(server){
+				if(server && str_state->checkPeerHeadersRecieved() ){
+					printf("\tServer Header Frame Recieved\n");
 					// send headers frame
 
 					std::map<std::string, std::string> headers;
@@ -84,12 +93,12 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 					// send data frame
 					FrameProcessor::sendDataFrame(ssl);
-					printf("Return OK\n");
 
 					return 0;
 				}
 
 				break;
+			}
 
 			case FrameType::PRIORITY:
 				FrameProcessor::_rcv_priority_frame(ssl, payload_length);
@@ -131,8 +140,9 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				break;
 
 			case FrameType::CONTINUATION:
-				if(FrameProcessor::_rcv_continuation_frame(ssl, streamid, payload_length) < 0 ){
+				if(FrameProcessor::_rcv_continuation_frame(str_state, ssl, streamid, payload_length, flags, p) == 2 ){
 					// TBD: error
+					return static_cast<int>(FrameType::CONTINUATION);
 				}
 				break;
 
@@ -151,6 +161,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				break;
 
 		}
+		printf("\n");
 	}
 
 	return 0;  // FIXME
@@ -215,17 +226,52 @@ int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigne
 	}
 
 	if( flags & FLAGS_END_HEADERS ){
-		 printf("\tEND_HEADERS Recieved\n");
+		printf("\tEND_HEADERS Recieved\n");
 		str_state->setRecieveEndHeaders();
 	}
 
-	// FIXME: 以下の２つは未対応
-	if( flags & FLAGS_PADDED ) printf("\tPADDED Recieved\n");
-	if( flags & FLAGS_PRIORITY ) printf("\tPRIORITY Recieved\n");
+	bool padded = false;
+	bool priority = false;
+	if( flags & FLAGS_PADDED ){
+		printf("\tPADDED Recieved\n");
+		padded = true;
+	}
+	if( flags & FLAGS_PRIORITY ){
+		printf("\tPRIORITY Recieved\n");
+		priority = true;
+	}
+
 	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
-	Hpack::readHpackHeaders(payload_length, p);
-	if( str_state->getRecieveEndStream() && str_state->getRecieveEndHeaders() ) return 1;
+
+	// padded と priority分を差し引く
+	// FIXME: 以下の２つは未対応(ビットが立っていれば、その処理に必要なパケットはそのまま読み飛ばす)
+	if(padded){
+		p++;   // Pad Length(8bit)
+		payload_length--;
+	}
+	if(priority){
+		p += 5;  // E(1bit) + StreamDependency(31bit) + Weight(8bit)
+		payload_length -= 5;
+	}
+
+	str_state->setHeaderBuffer(p, payload_length);
+
+	// END_HEADERSとEND_STREAMがセットされたら終了させる
+	if( str_state->getRecieveEndHeaders() && str_state->getRecieveEndStream() ){
+		Hpack::readHpackHeaders(payload_length, p);
+		// 処理は終了
+		return 1;
+	}
+
+	if( str_state->getRecieveEndHeaders() ){
+		// 次はDATAフレームを受け取ってから
+		Hpack::readHpackHeaders(payload_length, p);
+	} else {
+		printf("Next Continuation\n");
+		// 次はCONTINUATIONが処理する
+	}
+
 	return 0;
 
 }
@@ -336,14 +382,42 @@ void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_le
 	printf("window_size_increment = %d\n", size_increment);
 }
 
-int FrameProcessor::_rcv_continuation_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
+int FrameProcessor::_rcv_continuation_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 	printf("=== CONTINUATION Frame Recieved ===\n");
+
 	if(streamid == 0 ){
 		printf("Invalid CONTINUATION Frame Recieved\n");
 		// TBD
 		return -1;
 	}
-	FrameProcessor::readFrameContents(ssl, payload_length, 1);
+	// TODO: Any number of CONTINUATION frames can be sent, as long as the preceding frame is on the same stream and is a HEADERS, PUSH_PROMISE, or CONTINUATION frame without the END_HEADERS flag set.
+
+	if( flags & FLAGS_END_STREAM ) {
+		printf("\tEND_STREAM Recieved\n");
+		str_state->setRecieveEndStream();
+	}
+
+	if( flags & FLAGS_END_HEADERS ){
+		printf("\tEND_HEADERS Recieved\n");
+		str_state->setRecieveEndHeaders();
+	}
+
+	// FIXME: HEADERSのCONTINUATIONしか対応していない
+	getFrameContentsIntoBuffer(ssl, payload_length, p);
+	str_state->setHeaderBuffer(p, payload_length);
+
+	if( str_state->getRecieveEndHeaders() ){
+		printf("=== Recieve EndHeaders ===\n");
+		Hpack::readHpackHeaders(str_state->getHeaderBufferSize(), str_state->getHeaderBuffer());  // FIXME: lock必要かも
+		return 2;
+	} else {
+		printf("=== Recieve Next Continuation ===\n");
+		return 1;
+	}
+
+	// FIXME: 戻り値適当
+
+//	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	return 0;
 }
 
@@ -650,7 +724,7 @@ int FrameProcessor::writeFrame(SSL* &ssl, unsigned char* data, int &data_length)
 // READ
 //////////////////////////
 // フレームペイロード(9byte)を読み込む関数
-int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){	// TODO: unsigned intに変更した方がいいかも
+int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& payload_length, unsigned char* type, unsigned char* flags, unsigned int& streamid){	// TODO: unsigned intに変更した方がいいかも
 
 	int r = 0;
 	int ret = 0;
@@ -658,7 +732,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 	while (1){
 
 		r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
-//		printf("BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+		printf("##### BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
 		ret = SSL_get_error(ssl, r); 
 		switch (ret){
 			case SSL_ERROR_NONE:
@@ -679,7 +753,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* p, unsigned int& p
 	_to_frametype(p, type);
 	_to_frameflags(p, flags);
 	_to_framestreamid(p, streamid);
-//	printf("streamid = %d\n\n", streamid);
+	printf("payload_length= %d, streamid = %d\n", payload_length, streamid);
 
 	return ret;
 }
@@ -754,7 +828,7 @@ int FrameProcessor::readFrameContents(SSL* ssl, unsigned int &payload_length, in
 
 		payload_length -= r;
 
-		printf("Rest payload_length = %d\n", payload_length);
+//		printf("Rest payload_length = %d\n", payload_length);
 		if(print) printf("%s", p);
 	}
 	return ret;

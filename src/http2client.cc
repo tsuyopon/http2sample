@@ -281,8 +281,7 @@ int main(int argc, char **argv)
 	int loop_return;
 	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headers, false);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
-	int ret = 0;
-	if (ret == static_cast<int>(FrameType::RST_STREAM)){
+	if (loop_return == static_cast<int>(FrameType::RST_STREAM)){
 		printf("=== RST_STREAM Recieved\n");
 		return 0;
 	}

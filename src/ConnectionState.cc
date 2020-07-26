@@ -89,7 +89,8 @@ void ConnectionState::set_peer_max_header_list_size(unsigned int header_list_siz
 void ConnectionState::getSettingsMap(std::map<uint16_t, uint32_t> &setmap){
 	// FIXME: デフォルト値と異なる場合のみ本来送付すればOK
 	setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = header_table_size_;
-	setmap[SettingsId::SETTINGS_ENABLE_PUSH] = enable_push_;
+	setmap[SettingsId::SETTINGS_ENABLE_PUSH] = 0;
+	//setmap[SettingsId::SETTINGS_ENABLE_PUSH] = enable_push_; // FIXME: デフォルトは1
 	setmap[SettingsId::SETTINGS_MAX_CONCURRENT_STREAMS] = max_concurrent_streams_;
 	setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = initial_window_size_;
 	setmap[SettingsId::SETTINGS_MAX_FRAME_SIZE] = max_frame_size_;

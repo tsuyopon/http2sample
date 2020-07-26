@@ -24,7 +24,7 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
 
 // FIXME: あとでいどう
 void printStringFromHpack(unsigned char* p, unsigned int value_length){
-	printf("\tParse String: ");
+	printf("\tParse String: length = %d", value_length);
 	while(value_length){
 		printf("%c", p[0]);
 		p++;
@@ -60,7 +60,7 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 		if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
-			printf("\tpayload_length=%d, read_values=%d, value_length=%d\n", *payload_length, read_bytes, value_length);
+			printf("\tpayload_length=%d, read_values=%d, read value_length=%d\n", *payload_length, read_bytes, value_length);
 			p = p + read_bytes;
 
 			if(first_bit_set) {
@@ -119,8 +119,10 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 
 	// FIXME: Huffman Encodingには未対応
 	while(1){
+		unsigned int tmplen = payload_length;
 		firstbyte = p[0];
-//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
+		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
+		printf("Leading text Hex: %02X %02X %02X %02X\n", p[0], p[1], p[2], p[3], p[4]);
 
 		if( firstbyte & 0x80 ){
 			// 1ビット目が1の場合には「Indexed Header Field Representation」
@@ -169,15 +171,16 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 		}
 
 		// 処理するパケットがなくなればbreakする
-		if(payload_length==0){
+		if(payload_length == 0){
 			break;
 		}
 
-		// 0よりも小さい場合にはパケット処理の帳尻があっていないので、何かプログラムミスしている可能性が高いと思われる。
-		if(payload_length<0){
+		// overflowエラー
+		if(payload_length > tmplen){
 			printf("[ERROR] maybe caused by program miss");
 			break;
 		}
+		printf("payload %d\n", payload_length);
 
 		printf("\n");
 	}
@@ -271,7 +274,7 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	// 2byte目以降を処理する
 	do {
 		next_octet = p[0];
-//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
+		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
 		integer = integer + ((next_octet & 127) * pow(2,m));  // 下位7bitだけ計算対象として、2^mを加算する
 		printf("%02x, integer=%d, m=%d \n", next_octet, integer, m);
 		m = m + 7;                           // 先頭ビットは計算対象外
@@ -281,7 +284,7 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 
 	*read_bytes = count;
 	*value_length = integer;
-//	printf("read_bytes = %d, value_length = %d\n", *read_bytes, *value_length);
+	printf("read_bytes = %d, value_length = %d\n", *read_bytes, *value_length);
 	return 0;
 
 }

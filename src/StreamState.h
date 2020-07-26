@@ -50,6 +50,8 @@ private:
 //
 	unsigned int consumer_data_bytes_;
 	unsigned int peer_consumer_data_bytes_;
+	unsigned char* header_buffer_;
+	unsigned int header_buffer_size_;
 
 public:
 	StreamState();
@@ -72,6 +74,10 @@ public:
 
 	void reset_peer_consumer_data_bytes();
 	unsigned int get_peer_consumer_data_bytes() const;
+	bool setHeaderBuffer(const unsigned char* buf, const unsigned int payload_length);
+	unsigned char* getHeaderBuffer() const;
+	unsigned int getHeaderBufferSize() const;
 	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);
+	bool checkPeerHeadersRecieved() const;
 
 }; 

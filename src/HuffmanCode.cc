@@ -279,6 +279,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 
 	unsigned int bitvalue = 0;    // huffman_code_tableと照合するためのビット値
 	unsigned int bitcounter = 0;  // huffman_code_tableと照合するためのビット数
+	unsigned int total_length = 0;
 
 	// whileでは1 octet毎に処理を進める。
 	printf("\tParse Value:");
@@ -314,6 +315,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 					// 照合されたら一旦カウンターや値をリセット
 					bitvalue = 0;
 					bitcounter = 0;
+					total_length++;
 				}
 			}
 		}
@@ -324,7 +326,8 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 			printf("\n");
 			break;
 		}
-
 	}
+
+	printf("total length with decoded huffman: %d\n", total_length);
 }
 

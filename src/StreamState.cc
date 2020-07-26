@@ -1,6 +1,7 @@
 #include "StreamState.h"
+#include <stdlib.h>
 
-StreamState::StreamState(): sendH_(false), recvH_(false), sendEH_(false), recvEH_(false), sendES_(false), recvES_(false), sendRS_(false), recvRS_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0) {}
+StreamState::StreamState(): sendH_(false), recvH_(false), sendEH_(false), recvEH_(false), sendES_(false), recvES_(false), sendRS_(false), recvRS_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0), header_buffer_(nullptr), header_buffer_size_(0) {}
 
 void StreamState::setSendHeaders() { 
 	sendH_ = true;
@@ -74,9 +75,59 @@ unsigned int StreamState::get_peer_consumer_data_bytes() const {
 	return peer_consumer_data_bytes_;
 }
 
+bool StreamState::setHeaderBuffer(const unsigned char* buf, const unsigned int payload_length){
+	if(header_buffer_ == nullptr){
+		// malloc
+		printf("malloc start payload_length = %d\n", payload_length);
+		header_buffer_ = static_cast<unsigned char*>(malloc(payload_length));
+		memcpy(header_buffer_, buf, payload_length);
+		header_buffer_size_ = payload_length;
+	} else {
+		// realloc
+		if( header_buffer_size_ + payload_length > 2147483647 ){  // FIXME: とりあえずint最大
+			return false;
+		}
+
+		printf("realloc start ,header_buffer_size_= %d\n", header_buffer_size_+payload_length);
+		// realloc はtmpに格納してNULL判定してから、header_buffer_に戻すのが一般的らしい
+		unsigned char *tmp;
+		if( (tmp = static_cast<unsigned char*>(realloc(header_buffer_, header_buffer_size_+payload_length))) == nullptr ){
+			return false;
+		}
+		header_buffer_ = tmp;
+		memcpy(&(header_buffer_[header_buffer_size_-1]), buf, payload_length);
+		
+
+		// FIXME: delete this
+//		char s[30000] = {'\0'};
+//		snprintf(s, payload_length, "ZZZZZZZZZ=%sXXX\n", buf);
+//		printf("%s\n", s);
+
+		header_buffer_size_ += payload_length;
+	}
+	return true;
+}
+
+unsigned char* StreamState::getHeaderBuffer() const {
+	return header_buffer_;
+}
+
+unsigned int StreamState::getHeaderBufferSize() const {
+	return header_buffer_size_;
+}
+
 bool StreamState::incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length){
 	peer_consumer_data_bytes_ += payload_length;
 	if( peer_consumer_data_bytes_ > 30000 ){  // FIXME
+		return true;
+	}
+	return false;
+}
+
+// HEADERSフレームおよびCONTINUATIONフレームの受信が完了したことを示す
+bool StreamState::checkPeerHeadersRecieved() const {
+	printf("recvEH_ = %d, recvES_ = %d\n", recvEH_, recvES_);
+	if( recvEH_ == true && recvES_ == true ){
 		return true;
 	}
 	return false;
