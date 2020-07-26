@@ -45,7 +45,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			case FrameType::DATA:
 				int ret;
 				recv_data = payload_length;
-				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags);
+				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags, p);
 				if(ret == 1){
 					return 0;
 				}
@@ -200,17 +200,25 @@ int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned i
 	return 0;
 }
 
-int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags){
+int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 	printf("\n=== DATA Frame Recieved ===\n");
 
 	// 本文の読み込み
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 
+	if( flags & FLAGS_PADDED ){
+		printf("\tPADDED Recieved\n");
+		// 1byte分paddingを読み進める
+		p++;
+		payload_length--;
+	}
+
 	// END_STREAM(この処理は分岐を抜けるので、本文読み込み以降で実施)
 	if( flags & FLAGS_END_STREAM ){
-		 printf("\n\tEND_STREAM Recieved\n");
+		printf("\n\tEND_STREAM Recieved\n");
 		return 1;
 	}
+
 
 	return  0;
 
