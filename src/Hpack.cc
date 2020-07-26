@@ -24,7 +24,7 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
 
 // FIXME: あとでいどう
 void printStringFromHpack(unsigned char* p, unsigned int value_length){
-	printf("\tParse String: length = %d", value_length);
+	printf("\tParse String: ");
 	while(value_length){
 		printf("%c", p[0]);
 		p++;
