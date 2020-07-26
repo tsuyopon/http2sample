@@ -67,14 +67,13 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			case FrameType::HEADERS:
 
 				// クライアントで、END_HEADERSを受信したら終了
-				if( !server && FrameProcessor::_rcv_headers_frame(con_state, ssl, payload_length, flags, p) == 1){
+				if( !server && FrameProcessor::_rcv_headers_frame(str_state, ssl, payload_length, flags, p) == 1){
 					printf("recieved 1 from _rcv_headers_frame\n");
 					return 0;
 				}
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
 				if(server){
-//					FrameProcessor::_rcv_headers_frame(ssl, payload_length, flags, p);
 					// send headers frame
 
 					std::map<std::string, std::string> headers;
@@ -206,17 +205,27 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 
 }
 
-int FrameProcessor::_rcv_headers_frame(ConnectionState* con_state, SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 
+	str_state->setRecieveHeaders();
 	printf("=== HEADERS Frame Recieved ===\n");
-	if( flags & FLAGS_END_STREAM ) printf("\tEND_STREAM Recieved\n");
-	if( flags & FLAGS_END_HEADERS ) printf("\tEND_HEADERS Recieved\n");
+	if( flags & FLAGS_END_STREAM ) {
+		printf("\tEND_STREAM Recieved\n");
+		str_state->setRecieveEndStream();
+	}
+
+	if( flags & FLAGS_END_HEADERS ){
+		 printf("\tEND_HEADERS Recieved\n");
+		str_state->setRecieveEndHeaders();
+	}
+
+	// FIXME: 以下の２つは未対応
 	if( flags & FLAGS_PADDED ) printf("\tPADDED Recieved\n");
 	if( flags & FLAGS_PRIORITY ) printf("\tPRIORITY Recieved\n");
 	// FIXME: Hpack表現は複数バイトに跨るパターンもあるので、全受信した(END_HEADERS=1)までデータを蓄積した後でチェックすることが望ましいと思われる。ただ、CONTINUATIONヘと続くパターンも別途考慮が必要となる。
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	Hpack::readHpackHeaders(payload_length, p);
-	if( (flags & FLAGS_END_STREAM) && (flags & FLAGS_END_HEADERS) ) return 1;
+	if( str_state->getRecieveEndStream() && str_state->getRecieveEndHeaders() ) return 1;
 	return 0;
 
 }

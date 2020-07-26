@@ -37,10 +37,13 @@ private:
 //	bool recvPP_;
 	bool sendH_;     // H: HEADER
 	bool recvH_;
+	bool sendEH_;    // EH: END_HEADER flags
+	bool recvEH_;
 	bool sendES_;    // ES: END_STREAM flags
 	bool recvES_;
-	bool sendRS_;    // RS: RST_SREAM flags
+	bool sendRS_;    // RS: RST_SRREAM flags
 	bool recvRS_;
+
 //
 //	// state
 //	Http2State state;
@@ -54,6 +57,10 @@ public:
 	bool getSendHeaders() const;
 	void setRecieveHeaders();
 	bool getRecieveHeaders() const;
+	void setSendEndHeaders();
+	bool getSendEndHeaders() const;
+	void setRecieveEndHeaders();
+	bool getRecieveEndHeaders() const;
 	void setSendEndStream();
 	bool getSendEndStream() const;
 	void setRecieveEndStream();
