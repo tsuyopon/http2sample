@@ -56,7 +56,6 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 		// ヘッダ名とヘッダ値を取得する
 		p = p + 1;
 		*payload_length = *payload_length - 1;
-		printf("\tHeader Name = xxxxx\n");	// FIXME: hufman encoding
 		if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 			printf("[ERROR] Could Not get Header Length\n");
 		} else {
@@ -121,8 +120,8 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 	while(1){
 		unsigned int tmplen = payload_length;
 		firstbyte = p[0];
-		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
-		printf("Leading text Hex: %02X %02X %02X %02X\n", p[0], p[1], p[2], p[3], p[4]);
+//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(firstbyte), firstbyte);
+//		printf("Leading text Hex: %02X %02X %02X %02X\n", p[0], p[1], p[2], p[3], p[4]);
 
 		if( firstbyte & 0x80 ){
 			// 1ビット目が1の場合には「Indexed Header Field Representation」
@@ -180,7 +179,7 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 			printf("[ERROR] maybe caused by program miss");
 			break;
 		}
-		printf("payload %d\n", payload_length);
+//		printf("payload %d\n", payload_length);
 
 		printf("\n");
 	}
@@ -274,9 +273,9 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	// 2byte目以降を処理する
 	do {
 		next_octet = p[0];
-		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
+//		printf("Leading text: " BYTE_TO_BINARY_PATTERN ", Hex: %02X\n", BYTE_TO_BINARY(next_octet), next_octet);
 		integer = integer + ((next_octet & 127) * pow(2,m));  // 下位7bitだけ計算対象として、2^mを加算する
-		printf("%02x, integer=%d, m=%d \n", next_octet, integer, m);
+//		printf("%02x, integer=%d, m=%d \n", next_octet, integer, m);
 		m = m + 7;                           // 先頭ビットは計算対象外
 		p++;                                 // 次のポインタを処理するために追加
 		count++;                             // 何バイト処理したか
@@ -284,7 +283,7 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 
 	*read_bytes = count;
 	*value_length = integer;
-	printf("read_bytes = %d, value_length = %d\n", *read_bytes, *value_length);
+//	printf("read_bytes = %d, value_length = %d\n", *read_bytes, *value_length);
 	return 0;
 
 }

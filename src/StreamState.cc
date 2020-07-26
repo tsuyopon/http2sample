@@ -78,7 +78,7 @@ unsigned int StreamState::get_peer_consumer_data_bytes() const {
 bool StreamState::setHeaderBuffer(const unsigned char* buf, const unsigned int payload_length){
 	if(header_buffer_ == nullptr){
 		// malloc
-		printf("malloc start payload_length = %d\n", payload_length);
+//		printf("malloc start payload_length = %d\n", payload_length);
 		header_buffer_ = static_cast<unsigned char*>(malloc(payload_length));
 		memcpy(header_buffer_, buf, payload_length);
 		header_buffer_size_ = payload_length;
@@ -88,7 +88,7 @@ bool StreamState::setHeaderBuffer(const unsigned char* buf, const unsigned int p
 			return false;
 		}
 
-		printf("realloc start , header_buffer_size_=%d, payload_length=%d, total=%d\n", header_buffer_size_, payload_length, header_buffer_size_+payload_length);
+//		printf("realloc start , header_buffer_size_=%d, payload_length=%d, total=%d\n", header_buffer_size_, payload_length, header_buffer_size_+payload_length);
 		// realloc はtmpに格納してNULL判定してから、header_buffer_に戻すのが一般的らしい
 		unsigned char *tmp;
 		if( (tmp = static_cast<unsigned char*>(realloc(header_buffer_, header_buffer_size_+payload_length))) == nullptr ){
@@ -96,13 +96,6 @@ bool StreamState::setHeaderBuffer(const unsigned char* buf, const unsigned int p
 		}
 		header_buffer_ = tmp;
 		memcpy(&(header_buffer_[header_buffer_size_]), buf, payload_length);
-//		memset(&(header_buffer_[header_buffer_size_-2]), 0, payload_length);
-
-		// FIXME: delete this
-//		char s[30000] = {'\0'};
-//		snprintf(s, payload_length, "ZZZZZZZZZ=%sXXX\n", buf);
-//		printf("%s\n", s);
-
 		header_buffer_size_ += payload_length;
 	}
 	return true;

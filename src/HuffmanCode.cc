@@ -282,7 +282,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 	unsigned int total_length = 0;
 
 	// whileでは1 octet毎に処理を進める。
-	printf("\tParse Value:");
+	printf("\tParse Value = ");
 	while(1){
 		// octetを取得して、ポインタを進める
 		unsigned int octet;
@@ -328,6 +328,6 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 		}
 	}
 
-	printf("total length with decoded huffman: %d\n", total_length);
+//	printf("total length with decoded huffman: %d\n", total_length);
 }
 

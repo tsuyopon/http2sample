@@ -740,7 +740,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& 
 	while (1){
 
 		r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
-		printf("##### BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+//		printf("##### BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x\n", p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
 		ret = SSL_get_error(ssl, r); 
 		switch (ret){
 			case SSL_ERROR_NONE:
@@ -761,7 +761,7 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& 
 	_to_frametype(p, type);
 	_to_frameflags(p, flags);
 	_to_framestreamid(p, streamid);
-	printf("payload_length= %d, streamid = %d\n", payload_length, streamid);
+//	printf("payload_length= %d, streamid = %d\n", payload_length, streamid);
 
 	return ret;
 }
