@@ -88,15 +88,15 @@ bool StreamState::setHeaderBuffer(const unsigned char* buf, const unsigned int p
 			return false;
 		}
 
-		printf("realloc start ,header_buffer_size_= %d\n", header_buffer_size_+payload_length);
+		printf("realloc start , header_buffer_size_=%d, payload_length=%d, total=%d\n", header_buffer_size_, payload_length, header_buffer_size_+payload_length);
 		// realloc はtmpに格納してNULL判定してから、header_buffer_に戻すのが一般的らしい
 		unsigned char *tmp;
 		if( (tmp = static_cast<unsigned char*>(realloc(header_buffer_, header_buffer_size_+payload_length))) == nullptr ){
 			return false;
 		}
 		header_buffer_ = tmp;
-		memcpy(&(header_buffer_[header_buffer_size_-1]), buf, payload_length);
-		
+		memcpy(&(header_buffer_[header_buffer_size_]), buf, payload_length);
+//		memset(&(header_buffer_[header_buffer_size_-2]), 0, payload_length);
 
 		// FIXME: delete this
 //		char s[30000] = {'\0'};

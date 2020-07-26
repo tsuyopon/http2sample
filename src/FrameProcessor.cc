@@ -769,20 +769,20 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& 
 
 // 一部の小さなフレーム用のデータでは、取得したコンテンツを解析して使います。このためのデータを取得します。
 // 大きなデータはreadFrameContentsで読み込んでください。
-int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* retbuf){
+int FrameProcessor::getFrameContentsIntoBuffer(SSL* ssl, unsigned int payload_length, unsigned char* p){
 
 	int r = 0;
 	int ret = 0;
 	unsigned char buf[BUF_SIZE] = { 0 };
-	unsigned char* p = buf;
+	unsigned char* tmpbuf = buf;
 	unsigned int total_read_bytes = 0;
 
 	while (payload_length > 0){
 
-		p = buf;
-		r = SSL_read(ssl, p, payload_length);
+		tmpbuf = buf;
+		r = SSL_read(ssl, tmpbuf, payload_length);
 		ret = SSL_get_error(ssl, r);
-		memcpy(retbuf+total_read_bytes, p, r);	  // 読み込んんだサイズ分だけコピーする
+		memcpy(p + total_read_bytes, tmpbuf, r);	  // 読み込んだサイズ分だけコピーする
 		switch (ret){
 			case SSL_ERROR_NONE:
 				break;
