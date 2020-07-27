@@ -142,6 +142,12 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			case FrameType::CONTINUATION:
 				if(FrameProcessor::_rcv_continuation_frame(str_state, ssl, streamid, payload_length, flags, p) == 2 ){
 					// TBD: error
+
+					// FIXME: とりあえず暫定のを返す
+					std::map<std::string, std::string> headers;
+					headers[":status"] = "200";
+					headers["content-type"] = "text/plain";
+					FrameProcessor::sendHeadersFrame(ssl, streamid, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
 					return static_cast<int>(FrameType::CONTINUATION);
 				}
 				break;
