@@ -120,7 +120,7 @@ bool StreamState::incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigne
 
 // HEADERSフレームおよびCONTINUATIONフレームの受信が完了したことを示す
 bool StreamState::checkPeerHeadersRecieved() const {
-	printf("recvEH_ = %d, recvES_ = %d\n", recvEH_, recvES_);
+//	printf("recvEH_ = %d, recvES_ = %d\n", recvEH_, recvES_);
 	if( recvEH_ == true && recvES_ == true ){
 		return true;
 	}

@@ -82,13 +82,13 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
 				if(server && str_state->checkPeerHeadersRecieved() ){
-					printf(RED_BR("\tServer Header Frame Recieved"));
+					printf(ORANGE_BR("\tServer Header Frame Recieved"));
 					// send headers frame
 
 					std::map<std::string, std::string> headers;
 					headers[":status"] = "200";
 					headers["content-type"] = "text/plain";
-					FrameProcessor::sendHeadersFrame(ssl, headers, FLAGS_END_HEADERS);
+					FrameProcessor::sendHeadersFrame(ssl, streamid, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
 					str_state->setRecieveHeaders();
 
 					// send data frame
@@ -118,7 +118,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				// TBD あとで移動
 				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
 				if(server == false && write_headers == 0){
-					if(sendHeadersFrame(ssl, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
+					if(sendHeadersFrame(ssl, streamid, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
 						// TBD
 					}
 					str_state->setSendHeaders();
@@ -276,7 +276,7 @@ int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigne
 		// 次はDATAフレームを受け取ってから
 		Hpack::readHpackHeaders(payload_length, p);
 	} else {
-		printf(ORANGE_BR("Next Continuation"));
+		printf(ORANGE_BR("\tNext Continuation"));
 		// 次はCONTINUATIONが処理する
 	}
 
@@ -559,7 +559,7 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 
 int FrameProcessor::sendDataFrame(SSL *ssl){
 	const unsigned char dataFrame[BINARY_FRAME_LENGTH+2] = { 0x00, 0x00, 0x02 /* 2byte */, static_cast<char>(FrameType::DATA), FLAGS_END_STREAM, 0x00, 0x00, 0x00, 0x01 /* streamid */, 0x4f /* O */, 0x4b /* K */};
-	printf(MAZENDA_BR("=== Start write sendDataFrame ==="));
+	printf(MAZENDA_BR("=== Start write Data Frame ==="));
 	int writelen = BINARY_FRAME_LENGTH+2; // FIXME
 	if( FrameProcessor::writeFrame(ssl, const_cast<unsigned char*>(dataFrame), writelen) < 0 ){
 		// TBD: errorとclose_socketは入れる
@@ -605,7 +605,7 @@ int FrameProcessor::sendDataFrame(SSL *ssl){
 //
 // See: https://tools.ietf.org/html/rfc7541#appendix-B
 //------------------------------------------------------------
-int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::string> &headers, uint8_t flags){
+int FrameProcessor::sendHeadersFrame(SSL *ssl, const unsigned int &streamid, const std::map<std::string, std::string> &headers, uint8_t flags){
 
 	std::list<std::pair<int /*length*/, unsigned char*>> pktHeaderList;    // pairの中には「パケット長、パケットへのポインタ」が含まれる
 	unsigned int total = 0;
@@ -619,7 +619,7 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 
 	// フレームを生成する
 	unsigned char* framepayload;
-	framepayload = createFramePayload(total, static_cast<char>(FrameType::HEADERS), flags, 1);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
+	framepayload = createFramePayload(total, static_cast<char>(FrameType::HEADERS), flags, streamid);  // 第２引数: フレームタイプはHEADER「0x01」、第３引数: END_STREAM(0x1)とEND_HEADERS(0x4)を有効にします、第４引数はstramID
 
 	// パケット配列全体分のメモリを確保して、先で生成したフレームをコピー
 	unsigned char* headersframe;

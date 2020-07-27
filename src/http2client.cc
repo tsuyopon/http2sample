@@ -262,6 +262,7 @@ int main(int argc, char **argv)
 		return 0;
 	}
 
+	// FIXME: shared_ptrを利用する
 	ConnectionState* con_state = new ConnectionState();
 	con_state->set_send_initial_frames();
 
