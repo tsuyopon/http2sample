@@ -7,6 +7,7 @@
 
 #include <list>
 #include <string.h>
+#include <arpa/inet.h>
 
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 // serverとclientから利用できるようにフラグをもつ

@@ -1,4 +1,5 @@
 #include "RequestUtil.h"
+#include <algorithm>
 
 // URLをパースして、schme, host, pathを返す
 int8_t RequestUtil::parseUrl(std::string url, std::string &scheme, std::string &host, std::string &path){

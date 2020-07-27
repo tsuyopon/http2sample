@@ -1,5 +1,6 @@
 #include "StreamState.h"
 #include <stdlib.h>
+#include <cstring>
 
 StreamState::StreamState(): sendH_(false), recvH_(false), sendEH_(false), recvEH_(false), sendES_(false), recvES_(false), sendRS_(false), recvRS_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0), header_buffer_(nullptr), header_buffer_size_(0) {}
 
