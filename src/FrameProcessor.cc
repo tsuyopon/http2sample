@@ -529,7 +529,7 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 		cnt++;
 	}
 
-    printf(MAZENDA_BR("=== Start write SETTINGS frame"));
+    printf(MAZENDA_BR("=== Start write SETTINGS frame ==="));
 	if( FrameProcessor::writeFrame(ssl, settingframe, writelen) < 0 ){
 		return -1;
 	}
@@ -547,7 +547,7 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 int FrameProcessor::sendSettingsAck(SSL *ssl){
 	// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty. (sec6.5)
 	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, static_cast<char>(FrameType::SETTINGS), FLAGS_ACK, 0x00, 0x00, 0x00, 0x00 };
-	printf(MAZENDA_BR("=== Start write SETTINGS frame ACK flags"));
+	printf(MAZENDA_BR("=== Start write SETTINGS frame ACK flags ==="));
 	int writelen = BINARY_FRAME_LENGTH;
 	// MEMO: const unsigned char[9]は const_castで一気にunsigned char*へと変換できる。reinterpret_castは不要。
 	if( FrameProcessor::writeFrame(ssl, const_cast<unsigned char*>(settingframeAck), writelen) < 0 ){
@@ -559,7 +559,7 @@ int FrameProcessor::sendSettingsAck(SSL *ssl){
 
 int FrameProcessor::sendDataFrame(SSL *ssl){
 	const unsigned char dataFrame[BINARY_FRAME_LENGTH+2] = { 0x00, 0x00, 0x02 /* 2byte */, static_cast<char>(FrameType::DATA), FLAGS_END_STREAM, 0x00, 0x00, 0x00, 0x01 /* streamid */, 0x4f /* O */, 0x4b /* K */};
-	printf(MAZENDA_BR("=== Start write sendDataFrame"));
+	printf(MAZENDA_BR("=== Start write sendDataFrame ==="));
 	int writelen = BINARY_FRAME_LENGTH+2; // FIXME
 	if( FrameProcessor::writeFrame(ssl, const_cast<unsigned char*>(dataFrame), writelen) < 0 ){
 		// TBD: errorとclose_socketは入れる
@@ -634,8 +634,9 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 	}
 
 	// ヘッダの送信処理
-	printf(MAZENDA_BR("=== Start write HEADERS frame"));
 	int writelen = total+BINARY_FRAME_LENGTH;
+	printf(MAZENDA_BR("=== Start write HEADERS frame ==="));
+	printf(ORANGE_BR("\twritelen = %d"), writelen);
 	if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
 		return -1;
 	}
@@ -650,9 +651,10 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const std::map<std::string, std::
 // ストリームIDは「0x00」(コネクション全体に適用するため)
 //------------------------------------------------------------
 int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code){
-	printf(MAZENDA_BR("\n=== Start write GOAWAY frame"));
-	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, static_cast<char>(FrameType::GOAWAY), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	printf(MAZENDA_BR("\n=== Start write GOAWAY frame ==="));
+	printf(ORANGE_BR("\tlast_streamid = %d, error_code = %d"), last_streamid, error_code);
 
+	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, static_cast<char>(FrameType::GOAWAY), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	// last_streamid
 	// FIXME: last_streamidは31bitなので先頭1bitが不要なのでその対応を検討するべき
@@ -669,7 +671,8 @@ int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, c
 }
 
 int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size){
-	printf(MAZENDA_BR("\n\n=== Start write Window Update frame"));
+	printf(MAZENDA_BR("\n\n=== Start write Window Update frame ==="));
+	printf(ORANGE_BR("\tstreamid = %d, increment_size = %d"), streamid, increment_size);
 
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
 	unsigned char windowUpdate[13] = { 0x00, 0x00, 0x04 , static_cast<char>(FrameType::WINDOW_UPDATE), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -685,7 +688,8 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 }
 
 int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code){
-	printf(MAZENDA_BR("\n=== Start write RST_STREAM frame"));
+	printf(MAZENDA_BR("\n=== Start write RST_STREAM frame ==="));
+	printf(ORANGE_BR("\tstreamid = %d, error_code = %d"), streamid, error_code);
 
 	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
 	unsigned char rstStream[13] = { 0x00, 0x00, 0x04, static_cast<char>(FrameType::RST_STREAM), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
