@@ -253,7 +253,8 @@ int main(int argc, char **argv)
 
 	// Once TLS negotiation is complete, both the client and the server MUST send a connection preface (sec3.3)
 	// The client sends the client connection preface immediately upon receipt of a 101 (Switching Protocols) response (indicating a successful upgrade) or as the first application data octets of a TLS connection. (sec3.5)
-	printf("=== Start write HTTP/2 Preface string\n");
+	printf(MAZENDA_BR("=== Start write HTTP/2 Preface string"));
+	//printf("=== Start write HTTP/2 Preface string\n");
 	int writelen;
 	writelen = strlen(CLIENT_CONNECTION_PREFACE);
 	if( FrameProcessor::writeFrame(_ssl, reinterpret_cast<unsigned char*>(const_cast<char*>(CLIENT_CONNECTION_PREFACE)), writelen) < 0 ){
@@ -282,7 +283,7 @@ int main(int argc, char **argv)
 	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headers, false);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	if (loop_return == static_cast<int>(FrameType::RST_STREAM)){
-		printf("=== RST_STREAM Recieved\n");
+		printf(CYAN_BR("=== RST_STREAM Recieved"));
 		return 0;
 	}
 

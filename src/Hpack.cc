@@ -1,5 +1,6 @@
 #include "Hpack.h"
 #include "HuffmanCode.h"
+#include "Definitions.h"
 
 // HPACKの簡単なデータを作成する。
 // ここで対応しているのは、以下のパターンのみ。
@@ -129,18 +130,18 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 
 			// 2ビット目から8ビット目がIndex値となるので取得する。
 			key_index = firstbyte & (0x40|0x20|0x10|0x08|0x04|0x02|0x01);
-			printf("Indexed Header Field Representation: index=%d %s %s\n", key_index, static_table_def[key_index-1][0], static_table_def[key_index-1][1]);
+			printf(ORANGE_BR("Indexed Header Field Representation: index=%d %s %s"), key_index, static_table_def[key_index-1][0], static_table_def[key_index-1][1]);
 			p++;
 			payload_length--;
 		} else if(firstbyte & 0x40){   
 			// (1bit, 2bit) = (0, 1)の場合には、「Literal Header Field with Incremental Indexing」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.1
-			printf("Literal Header Field with Incremental Indexing\n");
+			printf(ORANGE_BR("Literal Header Field with Incremental Indexing"));
 			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 6 /*nbit_prefix*/);
 		} else if(firstbyte & 0x20){
 			// (1bit, 2bit, 3bit)=(0,0,1)のケースは動的テーブル更新の場合
 			// https://tools.ietf.org/html/rfc7541#section-6.3
-			printf("Dynamic Table Size Update\n");
+			printf(ORANGE_BR("Dynamic Table Size Update"));
 			// FIXME: 更新させる
 			p++;
 			payload_length--;
@@ -151,19 +152,19 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 
 			// 下位4bitを取得して0かどうかでHpack表現がわかれます。
 			key_index = firstbyte & (0x08|0x04|0x02|0x01);
-			printf("Literal Header Field without Indexing. index=%d\n", key_index);
+			printf(ORANGE_BR("Literal Header Field without Indexing. index=%d"), key_index);
 
 			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/);
 
 		} else if(!(firstbyte & 0x10)){
 			// (1bit, 2bit, 3bit, 4bit)=(0,0,0,1)の場合は、「Literal Header Field Never Indexed」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.3
-			printf("Literal Header Field Never Indexed\n");
+			printf(ORANGE_BR("Literal Header Field Never Indexed"));
 			// TODO: 動作確認未実施
 			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/);
 		} else {
 			// 存在しないはず
-			printf("[ERROR] invaid Hpack Representation\n");
+			printf(RED_BR("[ERROR] invaid Hpack Representation"));
 			//FIXME: エラーにした方が正しいかも
 			p++;
 			payload_length--;
@@ -176,7 +177,7 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 
 		// overflowエラー
 		if(payload_length > tmplen){
-			printf("[ERROR] maybe caused by program miss");
+			printf(RED_BR("[ERROR] maybe caused by program miss"));
 			break;
 		}
 //		printf("payload %d\n", payload_length);
