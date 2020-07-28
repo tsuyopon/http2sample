@@ -13,17 +13,51 @@ There are too many limitations about this source code.
   - https://gcc.gnu.org/projects/cxx-status.html#cxx17
 - require openssl-1.1.0+ to compile this source code.
 
-# Compile & Execution  
-- compile
+# Compile (handy execute mode)
+you can build using handy mode
 ```
 $ cd src/
-$ make
+$ make -f Makefile.handy
 ```
 
-- execute
-you can specify target domain.
+# Setup (Install using autotools)
+autotools is needed. you can install this tool by typing below command.
+```
+//Debian or Ubuntu
+$ sudo apt-get install autoconf automake libtool autoconf-doc libtool-doc
+
+// Mac(homebrew)
+$ sudo brew install automake autoconf
+
+// Mac(port)
+$ sudo port install automake autoconf
+```
+
+type here to install
+```
+$ ./autogen.sh 
+$ ./configure
+$ make
+$ make install
+```
+
+# Execute
+
+### Client Program
+you can specify target url using u option.
 ```
 $ ./http2client -u https://example.com/hoge/fuga/piyo
+```
+
+you can specify request header using H option.
+```
+$ ./http2client -u https://example.com/hoge/fuga/piyo -H 'hoge:fuga'
+```
+
+
+### Server Program
+```
+$ ./http2server
 ```
 
 # Note

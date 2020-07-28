@@ -2,3 +2,17 @@ main
 http2client
 *.swp
 *.o
+Makefile
+aclocal.m4
+autom4te.cache
+compile
+config.log
+config.status
+configure
+configure.h
+configure.h.in
+depcomp
+install-sh
+ltmain.sh
+missing
+stamp-h1
