@@ -13,7 +13,6 @@
 // serverとclientから利用できるようにフラグをもつ
 int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers){
 
-	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
 	unsigned char type = 0;
 	unsigned char flags = 0;
@@ -29,7 +28,6 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 		flags = 0;
 		memset(buf, 0, BUF_SIZE);
 
-//		printf("\n\nreadFrameLoop: loop start\n");
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
@@ -117,12 +115,11 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// TBD あとで移動
 				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
-				if(!con_state->get_is_server() && write_headers == 0){
+				if(!con_state->get_is_server() && !str_state->getSendHeaders()){
 					if(sendHeadersFrame(ssl, str_state->getStreamId(), headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
 						// TBD
 					}
 					str_state->setSendHeaders();
-					write_headers = 1;
 				}
 
 				break;
