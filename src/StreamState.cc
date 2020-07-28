@@ -5,8 +5,6 @@
 StreamState::StreamState(unsigned int streamid): streamid_(streamid), sendH_(false), recvH_(false), sendEH_(false), recvEH_(false), sendES_(false), recvES_(false), sendRS_(false), recvRS_(false), consumer_data_bytes_(0), peer_consumer_data_bytes_(0), header_buffer_(nullptr), header_buffer_size_(0) {}
 
 unsigned int StreamState::getStreamId() const { 
-	// DELETE
-	printf("AAAAAAAA streamid=%d\n", streamid_);
 	return streamid_;
 }
 
@@ -76,6 +74,10 @@ bool StreamState::getRecieveRstStream() const {
 
 void StreamState::reset_peer_consumer_data_bytes() { 
 	peer_consumer_data_bytes_ = 0;
+}
+
+unsigned int StreamState::get_consumer_data_bytes() const {
+	return consumer_data_bytes_;
 }
 
 unsigned int StreamState::get_peer_consumer_data_bytes() const {

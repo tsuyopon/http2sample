@@ -33,7 +33,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
-		printf(ORANGE_BR("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d"), type, payload_length, type, streamid);
+//		printf(ORANGE_BR("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d"), type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -46,7 +46,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			case FrameType::DATA:
 				int ret;
 				recv_data = payload_length;
-				ret = FrameProcessor::_rcv_data_frame(ssl, payload_length, flags, p);
+				ret = FrameProcessor::_rcv_data_frame(ssl, streamid, payload_length, flags, p);
 				if(ret == 1){
 					return 0;
 				}
@@ -74,7 +74,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				}
 
 				// クライアントで、END_HEADERSを受信したら終了
-				int retdata = FrameProcessor::_rcv_headers_frame(str_state, ssl, payload_length, flags, p);
+				int retdata = FrameProcessor::_rcv_headers_frame(str_state, ssl, streamid, payload_length, flags, p);
 				if( !con_state->get_is_server() && retdata == 1){
 					printf("Client: recieved 1 from _rcv_headers_frame\n");
 					return 0;
@@ -136,7 +136,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 				return 0;
 
 			case FrameType::WINDOW_UPDATE:
-				FrameProcessor::_rcv_window_update_frame(ssl, payload_length, p);
+				FrameProcessor::_rcv_window_update_frame(ssl, streamid, payload_length, p);
 				break;
 
 			case FrameType::CONTINUATION:
@@ -175,7 +175,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
-	printf(CYAN_BR("=== PING Frame Recieved ==="));
+	printf(CYAN_BR("=== PING Frame Recieved === (length=%d, streamid=%d)"), payload_length, streamid);
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 
 	// If a PING frame is received with a stream identifier field value other than 0x0, the recipient MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.7)
@@ -206,8 +206,8 @@ int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned i
 	return 0;
 }
 
-int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
-	printf(CYAN_BR("\n=== DATA Frame Recieved ==="));
+int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+	printf(CYAN_BR("\n=== DATA Frame Recieved === (length=%d, flags=0x%02x, streamid=%d)"), payload_length, flags, streamid);
 
 	// 本文の読み込み
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
@@ -230,17 +230,17 @@ int FrameProcessor::_rcv_data_frame(SSL* ssl, unsigned int &payload_length, unsi
 
 }
 
-int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
+int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
 
 	str_state->setRecieveHeaders();
-	printf(CYAN_BR("=== HEADERS Frame Recieved ==="));
+	printf(CYAN_BR("=== HEADERS Frame Recieved === (payload_length=%d, flags=0x%02x, streamid=%d)"), payload_length, flags, streamid);
 	if( flags & FLAGS_END_STREAM ) {
 		printf(ORANGE_BR("\tEND_STREAM Recieved"));
 		str_state->setRecieveEndStream();
 	}
 
 	if( flags & FLAGS_END_HEADERS ){
-		printf(ORANGE_BR("\tEND_HEADERS Recieved"));
+		printf(ORANGE_BR("\tEND_HEADERS Recieved\n"));
 		str_state->setRecieveEndHeaders();
 	}
 
@@ -291,14 +291,14 @@ int FrameProcessor::_rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigne
 }
 
 void FrameProcessor::_rcv_priority_frame(SSL* ssl, unsigned int &payload_length){
-	printf(CYAN_BR("=== PRIORITY Frame Recieved ==="));
+	printf(CYAN_BR("=== PRIORITY Frame Recieved === (payload_length=%d)"), payload_length);
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	/* do nothing */
 	// フレームだけ読み飛ばす
 }
 
 int FrameProcessor::_rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p){
-	printf(CYAN_BR("=== RST_STREAM Frame Recieved ==="));
+	printf(CYAN_BR("=== RST_STREAM Frame Recieved === (payload_length=%d, streamid=%d"), payload_length, streamid);
 
 	// If a RST_STREAM frame is received with a stream identifier of 0x0, the recipient MUST treat this as a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.4)
 	if( streamid != 0 ){
@@ -323,7 +323,7 @@ int FrameProcessor::_rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsi
 }
 
 int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
-	printf(CYAN_BR("=== SETTINGS Frame Recieved ==="));
+	printf(CYAN_BR("=== SETTINGS Frame Recieved === (payload_length=%d, flags=0x%02x, streamid=%d)"), payload_length, flags, streamid);
 
 	// If an endpoint receives a SETTINGS frame whose stream identifier field is anything other than 0x0, the endpoint MUST respond with a connection error (Section 5.4.1) of type PROTOCOL_ERROR. (sec6.5)
 	if(streamid != 0 ){
@@ -359,7 +359,6 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 	// SETTINGSフレームへの応答
 	// TODO: Upon receiving the SETTINGS frame, the client is expected to honor any parameters established. (sec3.5)
 	if( payload_length != 0 && flags != FLAGS_ACK ){ // ACKの場合以外(長さは0以外で、flgsが0x01である)に、ACKを応答する。
-		printf(MAZENDA_BR("\n=== Send Settings Ack ==="));
 		if(FrameProcessor::sendSettingsAck(ssl) < 0){
 			// TBD
 			return -1;
@@ -370,14 +369,14 @@ int FrameProcessor::_rcv_settings_frame(SSL* ssl, unsigned int &streamid, unsign
 }
 
 void FrameProcessor::_rcv_push_promise_frame(SSL* ssl, unsigned int &payload_length){
-	printf(CYAN_BR("=== PUSH_PROMISE Frame Recieved ==="));
+	printf(CYAN_BR("=== PUSH_PROMISE Frame Recieved === (payload_length=%d)"), payload_length);
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	/* do nothing */
 	// フレームだけ読み飛ばす
 }
 
 void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
-	printf(CYAN_BR("=== GOAWAY Frame Recieved ==="));
+	printf(CYAN_BR("=== GOAWAY Frame Recieved === (payload_length=%d)"), payload_length);
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	unsigned int last_streamid = 0;
 	unsigned int error_code = 0;
@@ -387,8 +386,8 @@ void FrameProcessor::_rcv_goaway_frame(SSL* ssl, unsigned int &payload_length, u
 	printf(ORANGE_BR("last_streamid = %d, error_code = %d message = %s"), last_streamid, error_code, ErrorMessages[error_code].c_str());
 }
 
-void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_length, unsigned char* &p){
-	printf(CYAN_BR("=== WINDOW_UPDATE Frame Recieved ==="));
+void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p){
+	printf(CYAN_BR("=== WINDOW_UPDATE Frame Recieved === (payload_length=%d, streamid=%d)"), payload_length, streamid);
 	getFrameContentsIntoBuffer(ssl, payload_length, p);
 	unsigned int size_increment = 0;
 	_copy4byteIntoUint32(&(p[0]), size_increment);
@@ -397,7 +396,7 @@ void FrameProcessor::_rcv_window_update_frame(SSL* ssl, unsigned int &payload_le
 }
 
 int FrameProcessor::_rcv_continuation_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p){
-	printf(CYAN_BR("=== CONTINUATION Frame Recieved ==="));
+	printf(CYAN_BR("=== CONTINUATION Frame Recieved === (payload_length=%d, flags=0x%02x, streamid=%d"), payload_length, flags, streamid);
 
 	if(streamid == 0 ){
 		printf(RED_BR("Invalid CONTINUATION Frame Recieved"));
@@ -435,14 +434,14 @@ int FrameProcessor::_rcv_continuation_frame(StreamState* str_state, SSL* ssl, un
 }
 
 void FrameProcessor::_rcv_altsvc_frame(SSL* ssl, unsigned int &payload_length){
-	printf(CYAN_BR("=== ALTSVC Frame Recieved ==="));
+	printf(CYAN_BR("=== ALTSVC Frame Recieved === (payload_length=%d)"), payload_length);
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	/* do nothing */
 	// フレームだけ読み飛ばす
 }
 
 void FrameProcessor::_rcv_origin_frame(SSL* ssl, unsigned int &payload_length){
-	printf(CYAN_BR("=== ORIGIN Frame Recieved ==="));
+	printf(CYAN_BR("=== ORIGIN Frame Recieved === (payload_length=%d)"), payload_length);
 	FrameProcessor::readFrameContents(ssl, payload_length, 1);
 	/* do nothing */
 	// フレームだけ読み飛ばす
@@ -522,11 +521,6 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 	// streamid
 	const unsigned int streamid = 0;   // FIXME: とりあえずアテで入れる
 	_copyUint32Into4byte(&(settingframe[5]), streamid);
-// DELETE
-//	settingframe[5] = 0;
-//	settingframe[6] = 0;
-//	settingframe[7] = 0;
-//	settingframe[8] = 0;
 
 	// Note: C/C++ packing signed char into int
     //    https://stackoverflow.com/questions/2437283/c-c-packing-signed-char-into-int
@@ -538,7 +532,7 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 		cnt++;
 	}
 
-    printf(MAZENDA_BR("=== Start write SETTINGS frame ==="));
+    printf(MAZENDA_BR("=== Start write SETTINGS frame === (length=%d, flags=0x%02x, streamid=%d)\n"), writelen, settingframe[4], streamid);
 	if( FrameProcessor::writeFrame(ssl, settingframe, writelen) < 0 ){
 		return -1;
 	}
@@ -554,10 +548,12 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 // 5バイト目にフラグ0x01を立てます。
 //------------------------------------------------------------
 int FrameProcessor::sendSettingsAck(SSL *ssl){
+
+	printf(MAZENDA_BR("\n=== Send Settings Ack === (length=0, flags=0x%02x, streamid=0)\n"), FLAGS_ACK);
 	// When this bit(ACK) is set, the payload of the SETTINGS frame MUST be empty. (sec6.5)
 	const unsigned char settingframeAck[BINARY_FRAME_LENGTH] = { 0x00, 0x00, 0x00, static_cast<char>(FrameType::SETTINGS), FLAGS_ACK, 0x00, 0x00, 0x00, 0x00 };
-	printf(MAZENDA_BR("=== Start write SETTINGS frame ACK flags ==="));
 	int writelen = BINARY_FRAME_LENGTH;
+	printf(MAZENDA_BR("=== Start write SETTINGS frame ACK flags === (length=%d, flags=0x%02x, streamid=0)\n"), writelen, FLAGS_ACK);
 	// MEMO: const unsigned char[9]は const_castで一気にunsigned char*へと変換できる。reinterpret_castは不要。
 	if( FrameProcessor::writeFrame(ssl, const_cast<unsigned char*>(settingframeAck), writelen) < 0 ){
 		// TBD: errorとclose_socketは入れる
@@ -642,10 +638,13 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const unsigned int &streamid, con
 		offset += itr->first;
 	}
 
-	// ヘッダの送信処理
 	int writelen = total+BINARY_FRAME_LENGTH;
-	printf(MAZENDA_BR("=== Start write HEADERS frame ==="));
-	printf(ORANGE_BR("\twritelen = %d"), writelen);
+	printf(MAZENDA_BR("=== Start write HEADERS frame === (length=%d, flags=0x%02x, streamid=%d)"), writelen, flags, streamid);
+	for (const auto& [key, value] : headers){
+		printf(ORANGE_BR("\t%s: %s"), key.c_str(), value.c_str());
+	}
+
+	// ヘッダの送信処理
 	if( FrameProcessor::writeFrame(ssl, headersframe, writelen) < 0 ){
 		return -1;
 	}
@@ -660,8 +659,9 @@ int FrameProcessor::sendHeadersFrame(SSL *ssl, const unsigned int &streamid, con
 // ストリームIDは「0x00」(コネクション全体に適用するため)
 //------------------------------------------------------------
 int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code){
-	printf(MAZENDA_BR("\n=== Start write GOAWAY frame ==="));
-	printf(ORANGE_BR("\tlast_streamid = %d, error_code = %d"), last_streamid, error_code);
+	// FIXME: payloadはとりあえず固定
+	printf(MAZENDA_BR("\n=== Start write GOAWAY frame === (payload_length=8, flags=0x00, streamid=0)"));
+	printf(ORANGE_BR("\tlast_streamid=%d, error_code=%d"), last_streamid, error_code);
 
 	unsigned char goawayframe[17] = { 0x00, 0x00, 0x08, static_cast<char>(FrameType::GOAWAY), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
@@ -680,8 +680,8 @@ int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, c
 }
 
 int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size){
-	printf(MAZENDA_BR("\n\n=== Start write Window Update frame ==="));
-	printf(ORANGE_BR("\tstreamid = %d, increment_size = %d"), streamid, increment_size);
+	printf(MAZENDA_BR("\n\n=== Start write Window Update frame === (payload_length=4, flags=0x00, streamid=%d)"), streamid);
+	printf(ORANGE_BR("\twindow_size_increment = %d"), increment_size);
 
 	// 上位3byteは4byte固定(window_update仕様)、タイプは0x08、フラグなし、streamidは0x00、最後の4byteはincrement_size
 	unsigned char windowUpdate[13] = { 0x00, 0x00, 0x04 , static_cast<char>(FrameType::WINDOW_UPDATE), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -697,8 +697,8 @@ int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, cons
 }
 
 int FrameProcessor::sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code){
-	printf(MAZENDA_BR("\n=== Start write RST_STREAM frame ==="));
-	printf(ORANGE_BR("\tstreamid = %d, error_code = %d"), streamid, error_code);
+	printf(MAZENDA_BR("\n=== Start write RST_STREAM frame === (streamid=%d, error_code=%d"), streamid, error_code);
+//	printf(ORANGE_BR("\tstreamid = %d, error_code = %d"), streamid, error_code);
 
 	// 上位3byteは4byte固定(rst_stream仕様)、タイプは0x03、フラグは定義されていない(0x00)
 	unsigned char rstStream[13] = { 0x00, 0x00, 0x04, static_cast<char>(FrameType::RST_STREAM), 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };

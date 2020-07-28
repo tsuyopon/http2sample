@@ -52,7 +52,7 @@ static int alpn_select_cb(SSL *ssl, const unsigned char **out,
 		}
 	}
 
-	printf("ALPN callback not matched\n");
+	printf("[ERROR] ALPN callback not matched\n");
 	return SSL_TLSEXT_ERR_NOACK;           // ALPN protocol not selected.
 }
 
@@ -60,7 +60,7 @@ uint8_t readFileCheck(char* &filename){
 	FILE *fp;
 	fp = fopen(filename,"r");
 	if(fp == NULL){
-		printf("open file failed. %s\n", filename);
+		printf("[ERROR] open file failed. %s\n", filename);
 		return -1;
 	}
 	return 0;
@@ -107,7 +107,7 @@ int main(int argc, char **argv)
 
 	// 証明書・秘密鍵ファイルのreadチェック
 	if( readFileCheck(crt_file) != 0  || readFileCheck(key_file) != 0 ){
-		printf("certificate files read failed\n");
+		printf("[ERROR] certificate files read failed\n");
 		exit(1);
 	}
 
@@ -125,7 +125,7 @@ int main(int argc, char **argv)
 
 	SOCKET serverfd;
 	if( (serverfd = socket(PF_INET, SOCK_STREAM, 0) ) < 0 ){
-		printf("Error calling socket()\n");
+		printf("[ERROR] calling socket()\n");
 		exit(1);
 	}
 
@@ -138,19 +138,19 @@ int main(int argc, char **argv)
 	addr.sin_port = htons(port);
 
 	if(bind(serverfd, (struct sockaddr*)&addr, sizeof(addr)) < 0){
-		printf("Error calling bind()\n");
+		printf("[ERROR] calling bind()\n");
 		exit(1);
 	}
 
 	int backlog = 10;
 	if(listen(serverfd, backlog) < 0){
-		printf("Error calling listen()\n");
+		printf("[ERROR] calling listen()\n");
 		close(serverfd);
 		exit(1);
 	}
 
 	socklen_t size = sizeof(struct sockaddr_in);
-	int error = 0;
+//	int error = 0;
 	char buf[1024];
 //	char body[] = "hello world";
 //	char header[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: Close\r\n";
@@ -175,7 +175,7 @@ int main(int argc, char **argv)
 
 			unsigned char* alpn_str = static_cast<unsigned char*>(malloc(len+1));
 			if( data == nullptr ){
-				printf("ALPN: protocol is not selected\n");
+				printf("[ERROR] ALPN: protocol is not selected\n");
 			} else {  // FIXME: http1.1も接続できるようにしたい
 				memcpy(alpn_str, data, len);
 				alpn_str[len] = '\0';
@@ -217,11 +217,11 @@ int main(int argc, char **argv)
 			printf("Finished Session\n");
 
 		} else {
-			printf("ACCEPT ERROR OCCURED ret=%d\n", ret);
+			printf("[ERROR] ACCEPT ERROR OCCURED ret=%d\n", ret);
 		}
 
 		SSL_shutdown(ssl);
-		int sd = SSL_get_fd(ssl);
+//		int sd = SSL_get_fd(ssl);
 		SSL_free(ssl);
 	}
 

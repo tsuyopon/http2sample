@@ -74,6 +74,7 @@ public:
 	bool getRecieveRstStream() const;
 
 	void reset_peer_consumer_data_bytes();
+	unsigned int get_consumer_data_bytes() const;
 	unsigned int get_peer_consumer_data_bytes() const;
 	bool setHeaderBuffer(const unsigned char* buf, const unsigned int payload_length);
 	unsigned char* getHeaderBuffer() const;

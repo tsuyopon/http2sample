@@ -60,9 +60,6 @@ unsigned int ConnectionState::get_next_streamid() {
 	} else {
 		max_create_streamid_ += 2;
 	}
-	// DELETE
-	printf("NextStreamId: %d\n", max_create_streamid_);
-
 	return max_create_streamid_;
 }
 

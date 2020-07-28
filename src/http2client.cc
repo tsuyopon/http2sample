@@ -253,9 +253,9 @@ int main(int argc, char **argv)
 
 	// Once TLS negotiation is complete, both the client and the server MUST send a connection preface (sec3.3)
 	// The client sends the client connection preface immediately upon receipt of a 101 (Switching Protocols) response (indicating a successful upgrade) or as the first application data octets of a TLS connection. (sec3.5)
-	printf(MAZENDA_BR("=== Start write HTTP/2 Preface string ==="));
 	int writelen;
 	writelen = strlen(CLIENT_CONNECTION_PREFACE);
+	printf(MAZENDA_BR("=== Start write HTTP/2 Preface string === (length=%d)\n"), writelen);
 	if( FrameProcessor::writeFrame(_ssl, reinterpret_cast<unsigned char*>(const_cast<char*>(CLIENT_CONNECTION_PREFACE)), writelen) < 0 ){
 		error = get_error();
 		close_socket(_socket, _ctx, _ssl);
