@@ -263,7 +263,7 @@ int main(int argc, char **argv)
 	}
 
 	// FIXME: shared_ptrを利用する
-	ConnectionState* con_state = new ConnectionState();
+	ConnectionState* con_state = new ConnectionState(false);
 	con_state->set_send_initial_frames();
 
 	// To avoid unnecessary latency, clients are permitted to send additional frames to the server immediately after sending the client connection preface, without waiting to receive the server connection preface. (sec3.5)
@@ -280,7 +280,7 @@ int main(int argc, char **argv)
 
 	// メインループ
 	int loop_return;
-	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headers, false);
+	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headers);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	if (loop_return == static_cast<int>(FrameType::RST_STREAM)){
 		printf(CYAN_BR("=== RST_STREAM Recieved"));

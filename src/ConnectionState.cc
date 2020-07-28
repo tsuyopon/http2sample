@@ -1,9 +1,10 @@
 #include "ConnectionState.h"
 
-ConnectionState::ConnectionState(){
+ConnectionState::ConnectionState(bool isServer): manage_streamid_(0), is_server_(isServer)  {
 
+	// FIXME: 初期化子リストへあとで変更する
 	send_initial_frames_ = false;
-	max_create_stream_id_ = 0;
+	max_create_streamid_ = 0;
 	concurrent_num_ = 0;
 
 	// initial value is defined in RFC7540 sec6.5
@@ -38,6 +39,31 @@ ConnectionState::ConnectionState(){
 
 void ConnectionState::set_send_initial_frames(){
 	send_initial_frames_ = true;
+}
+
+unsigned int ConnectionState::get_manage_streamid() const {
+	return manage_streamid_;
+}
+
+bool ConnectionState::get_is_server() const {
+	return is_server_;
+}
+
+// FIXME: 非同期時にはロックが必要
+unsigned int ConnectionState::get_next_streamid() {
+	if( max_create_streamid_ == 0 ){
+		if(is_server_){
+			max_create_streamid_ = 2;
+		} else {
+			max_create_streamid_ = 1;
+		}
+	} else {
+		max_create_streamid_ += 2;
+	}
+	// DELETE
+	printf("NextStreamId: %d\n", max_create_streamid_);
+
+	return max_create_streamid_;
 }
 
 /******************************************
@@ -90,7 +116,7 @@ void ConnectionState::getSettingsMap(std::map<uint16_t, uint32_t> &setmap){
 	// FIXME: デフォルト値と異なる場合のみ本来送付すればOK
 	setmap[SettingsId::SETTINGS_HEADER_TABLE_SIZE] = header_table_size_;
 	setmap[SettingsId::SETTINGS_ENABLE_PUSH] = 0;
-	//setmap[SettingsId::SETTINGS_ENABLE_PUSH] = enable_push_; // FIXME: デフォルトは1
+	//setmap[SettingsId::SETTINGS_ENABLE_PUSH] = enable_push_; // FIXME: デフォルトは1(nginxでのリクエストで失敗するので一時的に0に変更した)
 	setmap[SettingsId::SETTINGS_MAX_CONCURRENT_STREAMS] = max_concurrent_streams_;
 	setmap[SettingsId::SETTINGS_INITIAL_WINDOW_SIZE] = initial_window_size_;
 	setmap[SettingsId::SETTINGS_MAX_FRAME_SIZE] = max_frame_size_;

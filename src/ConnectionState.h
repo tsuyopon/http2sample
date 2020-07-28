@@ -7,8 +7,13 @@
 // (host, port)ペア毎に1つ生成される。
 class ConnectionState {
 public:
-	ConnectionState();
+	ConnectionState(bool isServer);
+
+	// manage
 	void set_send_initial_frames();
+	unsigned int get_manage_streamid() const;
+	bool get_is_server() const;
+	unsigned int get_next_streamid();
 
 	// my settings
 	void set_header_table_size_(unsigned int table_size);
@@ -32,8 +37,10 @@ public:
 
 private:
 	/* manage*/
+	const unsigned int manage_streamid_;
+	bool is_server_;  // FIXME: あとでenumへ変更
 	bool send_initial_frames_;
-	unsigned int max_create_stream_id_;
+	unsigned int max_create_streamid_;
 	unsigned int concurrent_num_;
 
 	/* settings */

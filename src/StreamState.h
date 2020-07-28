@@ -17,7 +17,7 @@ class StreamState {
 private:
 
 //	// streamid
-//	unsigned int streamid_;
+	const unsigned int streamid_;
 //
 //	// request pseudo-header (defined in sec8.1.2.3)
 //	std::string method_;
@@ -54,7 +54,8 @@ private:
 	unsigned int header_buffer_size_;
 
 public:
-	StreamState();
+	StreamState(unsigned int streamid);
+	unsigned int getStreamId() const;
 	void setSendHeaders();
 	bool getSendHeaders() const;
 	void setRecieveHeaders();

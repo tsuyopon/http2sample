@@ -11,7 +11,7 @@
 
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 // serverとclientから利用できるようにフラグをもつ
-int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers, bool server){
+int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers){
 
 	int write_headers = 0;	  // 初回のHEADERSフレームの書き込みを行ったかどうか判定するフラグ */
 	unsigned int payload_length = 0;
@@ -22,7 +22,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 	unsigned char* p = buf;
 	unsigned int recv_data = 0;
 
-	StreamState* str_state = new StreamState();
+	StreamState* str_state = new StreamState(con_state->get_next_streamid());
 
 	while(1){
 		type = 0;
@@ -33,7 +33,7 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
-//		printf("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d\n", type, payload_length, type, streamid);
+		printf(ORANGE_BR("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d"), type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -75,13 +75,13 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// クライアントで、END_HEADERSを受信したら終了
 				int retdata = FrameProcessor::_rcv_headers_frame(str_state, ssl, payload_length, flags, p);
-				if( !server && retdata == 1){
+				if( !con_state->get_is_server() && retdata == 1){
 					printf("Client: recieved 1 from _rcv_headers_frame\n");
 					return 0;
 				}
 
 				// TBD: とりあえずスタブで簡単なものを返す(END_HEADERS等のフラグはチェックしない)
-				if(server && str_state->checkPeerHeadersRecieved() ){
+				if(con_state->get_is_server() && str_state->checkPeerHeadersRecieved() ){
 					printf(ORANGE_BR("\tServer Header Frame Recieved"));
 					// send headers frame
 
@@ -117,8 +117,8 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 				// TBD あとで移動
 				// クライアントで初回SETTINGSフレームを受信した後にだけ、HEADERSフレームをリクエストする
-				if(server == false && write_headers == 0){
-					if(sendHeadersFrame(ssl, streamid, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
+				if(!con_state->get_is_server() && write_headers == 0){
+					if(sendHeadersFrame(ssl, str_state->getStreamId(), headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
 						// TBD
 					}
 					str_state->setSendHeaders();
@@ -520,10 +520,13 @@ int FrameProcessor::sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& se
 	settingframe[4] = 0;  // flags
 
 	// streamid
-	settingframe[5] = 0;
-	settingframe[6] = 0;
-	settingframe[7] = 0;
-	settingframe[8] = 0;
+	const unsigned int streamid = 0;   // FIXME: とりあえずアテで入れる
+	_copyUint32Into4byte(&(settingframe[5]), streamid);
+// DELETE
+//	settingframe[5] = 0;
+//	settingframe[6] = 0;
+//	settingframe[7] = 0;
+//	settingframe[8] = 0;
 
 	// Note: C/C++ packing signed char into int
     //    https://stackoverflow.com/questions/2437283/c-c-packing-signed-char-into-int

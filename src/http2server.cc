@@ -192,7 +192,7 @@ int main(int argc, char **argv)
 				printf("%s\n", buf);
 
 				std::map<uint16_t, uint32_t> setmap;
-				ConnectionState* con_state = new ConnectionState();
+				ConnectionState* con_state = new ConnectionState(true);
 				con_state->getSettingsMap(setmap);
 
 				if(FrameProcessor::sendSettingsFrame(ssl, setmap) < 0){
@@ -201,7 +201,7 @@ int main(int argc, char **argv)
 
 				// FIXME: headersは空なので
 				std::map<std::string, std::string> headers;
-				if( FrameProcessor::readFrameLoop(con_state, ssl, headers, true) < 0){
+				if( FrameProcessor::readFrameLoop(con_state, ssl, headers) < 0){
 					return -1;
 				}
 
