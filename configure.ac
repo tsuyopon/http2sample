@@ -20,6 +20,11 @@ AC_CHECK_LIB([ssl], [SSL_get_client_random, SSL_SESSION_get_master_key, SSL_get_
 AC_CHECK_LIB([crypto], [ERR_print_errors_fp])
 AC_CHECK_LIB([m], [pow])
 
+# FIXME: 対応させたい
+## see: https://stackoverflow.com/questions/7987952/how-to-use-c11-features-with-autoconf
+#AX_CHECK_COMPILE_FLAG([-std=c++17], [
+#                        CXXFLAGS="$CXXFLAGS -std=c++17"])
+
 # Checks for header files.
 AC_CHECK_HEADERS([arpa/inet.h netinet/in.h stdlib.h string.h sys/socket.h unistd.h])
 
