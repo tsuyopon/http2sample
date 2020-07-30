@@ -275,7 +275,7 @@ huffman_code huffman_code_table[] = {
 
 } // namespace
 
-void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
+void HuffmanCode::decodeHuffman(unsigned char* p, std::string &value, unsigned int length){
 
 	unsigned int bitvalue = 0;    // huffman_code_tableと照合するためのビット値
 	unsigned int bitcounter = 0;  // huffman_code_tableと照合するためのビット数
@@ -311,6 +311,7 @@ void HuffmanCode::decodeHuffman(unsigned char* p, unsigned int length){
 //					printf("%02x", bitvalue);
 //					printf("tbl_index=%d, len=%d, string=%c \n", tbl_index, huffman_code_table[tbl_index].len, huffman_code_table[tbl_index].string);
 					printf("%c", huffman_code_table[tbl_index].string);
+					value += huffman_code_table[tbl_index].string;
 
 					// 照合されたら一旦カウンターや値をリセット
 					bitvalue = 0;

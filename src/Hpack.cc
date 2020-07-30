@@ -24,10 +24,11 @@ int Hpack::createHpack(const std::string header, const std::string value, unsign
 }
 
 // FIXME: あとでいどう
-void printStringFromHpack(unsigned char* p, unsigned int value_length){
+void getStringFromHpack(unsigned char* p, std::string &value, unsigned int value_length){
 	printf("\tParse String: ");
 	while(value_length){
 		printf("%c", p[0]);
+		value += p[0];
 		p++;
 		value_length--;
 	}
@@ -48,10 +49,12 @@ void printStringFromHpack(unsigned char* p, unsigned int value_length){
  *    先頭にindex表現がなければ、次にName Lengthの整数表現、整数表現分のNameの値、Value Lengthの整数表現、整数表現分のValueが来る
  * 
  ------------------------------------------------------------*/
-void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned int *payload_length, int nbit_prefix){
+void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned int *payload_length, int nbit_prefix, bool indexing){
 	unsigned int read_bytes = 0;
 	unsigned int value_length = 0;
 	bool first_bit_set;
+	std::string header_name;
+
 	if(decodeIntegerRepresentation(p, nbit_prefix, &read_bytes, &value_length, &first_bit_set) == 1){  // 整数表現ではない
 		// See: https://tools.ietf.org/html/rfc7541#section-6.2.1   Figure7
 		// ヘッダ名とヘッダ値を取得する
@@ -65,10 +68,12 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 
 			if(first_bit_set) {
 				printf("\tHeaderName: Hufman encoding flag IS set\n");
-				HuffmanCode::decodeHuffman(p, value_length);
+				HuffmanCode::decodeHuffman(p, header_name, value_length);
+//				printf("AAAA %s\n", header_name.c_str());
 			} else {
 				printf("\tHeaderName: Hufman encoding flag IS NOT set\n");
-				printStringFromHpack(p, value_length);
+				getStringFromHpack(p, header_name, value_length);
+//				printf("AAAA %s\n", header_name.c_str());
 			}
 			p = p + value_length;
 			*payload_length = *payload_length - read_bytes - value_length;
@@ -77,27 +82,59 @@ void Hpack::decodeLiteralHeaderFieldRepresentation(unsigned char* &p, unsigned i
 	} else { // 整数表現
 		// See: https://tools.ietf.org/html/rfc7541#section-6.2.1   Figure6
 		// ヘッダ名はindexから取得して、ヘッダ値を取得する
-		printf("\tHeader Name = %s\n", static_table_def[value_length-1][0]);
+		if( value_length < DYNAMIC_TABLE_OFFSET){
+			printf("\tHeader Name = %s\n", static_table_def[value_length-1][0]);
+			header_name = static_table_def[value_length-1][0];
+		} else {
+			// FIXME: 存在しないindexを指定した際の考慮がない
+			// indexでヘッダ値のみ取得する場合
+			auto begin = g_dynamic_table_.at(value_length - DYNAMIC_TABLE_OFFSET -1).begin();
+//			printf("%s => %s\n", begin->first.c_str(), begin->second.c_str());
+			printf("\tHeader Name = %s\n", begin->first.c_str());
+			header_name = begin->first;
+//
+//			header_name = static_table_def[value_length-1][0];
+//			printf("index = %d\n", key_index - DYNAMIC_TABLE_OFFSET);
+//			auto begin = g_dynamic_table_.at(key_index - DYNAMIC_TABLE_OFFSET -1).begin();
+//			printf(ORANGE_BR("Indexed Header Field Representation: dynamic index=%d %s %s"), key_index, static_table_def[key_index-1][0], static_table_def[key_index-1][1]);
+//			std::cout << begin->first << " : " << begin->second << std::endl;
+//			printf("%s => %s\n", begin->first.c_str(), begin->second.c_str());
+		}
 		p = p + read_bytes;
 		*payload_length = *payload_length - read_bytes;
 	}
 
 	// ヘッダ値の長さを取得する
 
+	std::string header_value;
 	if(decodeIntegerRepresentation(p, 7 /*nbit_prefix*/, &read_bytes, &value_length, &first_bit_set) == 1){
 		printf("[ERROR] Could Not get Header Length\n");
 	} else {
 		p = p + read_bytes;
 		if(first_bit_set) {
 			printf("\tHeaderValue: Hufman encoding flag IS set\n");
-			HuffmanCode::decodeHuffman(p, value_length);
+			HuffmanCode::decodeHuffman(p, header_value, value_length);
+//			printf("AAAA %s\n", header_value.c_str());
 		} else {
 			printf("\tHeaderValue: Hufman encoding flag IS NOT set\n");
-			printStringFromHpack(p, value_length);
+			getStringFromHpack(p, header_value, value_length);
+//			printf("AAAA %s\n", header_value.c_str());
 		}
 		p = p + value_length;
 		*payload_length = *payload_length - read_bytes - value_length;
 	}
+
+	// Dynamic Tableの更新処理を行う
+	if(indexing){
+		// TODO: 文字が何もセットされない場合には空文字扱いだが何か必要?
+// DELETE
+		printf("\tUpdate Dynamic Table %s = %s\n", header_name.c_str(), header_value.c_str());
+		std::map<std::string,std::string> update_map;
+		update_map[header_name] = header_value;
+		auto it = g_dynamic_table_.begin();
+		g_dynamic_table_.insert(it, update_map);
+	}
+
 }
 
 /*------------------------------------------------------------
@@ -117,7 +154,6 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 	int key_index = 0;
 	unsigned char firstbyte;
 
-	// FIXME: Huffman Encodingには未対応
 	while(1){
 		unsigned int tmplen = payload_length;
 		firstbyte = p[0];
@@ -130,16 +166,32 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 
 			// 2ビット目から8ビット目がIndex値となるので取得する。
 			key_index = firstbyte & (0x40|0x20|0x10|0x08|0x04|0x02|0x01);
-			printf(ORANGE_BR("Indexed Header Field Representation: index=%d %s %s"), key_index, static_table_def[key_index-1][0], static_table_def[key_index-1][1]);
+			if(key_index < DYNAMIC_TABLE_OFFSET){
+				printf(ORANGE_BR("Indexed Header Field Representation: static index=%d [%s => %s]"), key_index, static_table_def[key_index-1][0], static_table_def[key_index-1][1]);
+			} else {
+
+				// debug for dynamic table
+//				for(size_t i = 0; i < g_dynamic_table_.size(); i++){
+//					auto tmpbegin = g_dynamic_table_.at(i).begin();
+//					printf("%s => %s\n", tmpbegin->first.c_str(), tmpbegin->second.c_str());
+//				}
+
+				auto begin = g_dynamic_table_.at(key_index - DYNAMIC_TABLE_OFFSET -1).begin();
+				printf(ORANGE_BR("Indexed Header Field Representation: dynamic index=%d [%s => %s]"), key_index, begin->first.c_str(), begin->second.c_str());
+//				std::cout << begin->first << " : " << begin->second << std::endl;
+//				printf("%s => %s\n", begin->first.c_str(), begin->second.c_str());
+			}
+
+			// TODO: static_table_defにヘッダの値が存在しない場合はどのように扱うべきか?
 			p++;
 			payload_length--;
 		} else if(firstbyte & 0x40){   
 			// (1bit, 2bit) = (0, 1)の場合には、「Literal Header Field with Incremental Indexing」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.1
 			printf(ORANGE_BR("Literal Header Field with Incremental Indexing"));
-			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 6 /*nbit_prefix*/);
+			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 6 /*nbit_prefix*/, true);
 		} else if(firstbyte & 0x20){
-			// (1bit, 2bit, 3bit)=(0,0,1)のケースは動的テーブル更新の場合
+			// (1bit, 2bit, 3bit)=(0,0,1)のケースは動的テーブルサイズ更新パケットの場合
 			// https://tools.ietf.org/html/rfc7541#section-6.3
 			printf(ORANGE_BR("Dynamic Table Size Update"));
 			// FIXME: 更新させる
@@ -154,14 +206,15 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 			key_index = firstbyte & (0x08|0x04|0x02|0x01);
 			printf(ORANGE_BR("Literal Header Field without Indexing. index=%d"), key_index);
 
-			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/);
+			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/, false);
 
 		} else if(!(firstbyte & 0x10)){
 			// (1bit, 2bit, 3bit, 4bit)=(0,0,0,1)の場合は、「Literal Header Field Never Indexed」
 			// https://tools.ietf.org/html/rfc7541#section-6.2.3
 			printf(ORANGE_BR("Literal Header Field Never Indexed"));
 			// TODO: 動作確認未実施
-			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/);
+			// FIXME: 現時点でproxyを経由を想定していないので、インデックスはさせるものとする
+			decodeLiteralHeaderFieldRepresentation(p, &payload_length, 4 /*nbit_prefix*/, true);
 		} else {
 			// 存在しないはず
 			printf(RED_BR("[ERROR] invaid Hpack Representation"));
@@ -288,3 +341,4 @@ int Hpack::decodeIntegerRepresentation(unsigned char* p, int nbit_prefix, unsign
 	return 0;
 
 }
+
