@@ -24,14 +24,16 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 	StreamState* str_state = new StreamState(con_state->get_next_streamid());
 
 	while(1){
+		payload_length = 0;
 		type = 0;
 		flags = 0;
+		streamid = 0;
 		memset(buf, 0, BUF_SIZE);
 
 		if( FrameProcessor::readFramePayload(ssl, p, payload_length, &type, &flags, streamid) != SSL_ERROR_NONE ){
 			return 0;
 		}
-//		printf(ORANGE_BR("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d"), type, payload_length, type, streamid);
+		printf(ORANGE_BR("##### readFramePayload Start: type=%d, payload_length=%d, flags=%d, streamid=%d"), type, payload_length, type, streamid);
 
 		switch(static_cast<FrameType>(type)){
 			// PING responses SHOULD be given higher priority than any other frame. (sec6.7)
@@ -119,6 +121,42 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 					if(sendHeadersFrame(ssl, str_state->getStreamId(), headers, FLAGS_END_STREAM|FLAGS_END_HEADERS) < 0){
 						// TBD
 					}
+// For Test: DELETE LATOR
+//                                       std::map<std::string, std::string> headers2;
+//                                       headers2[":method"] = "GET";
+//                                       headers2[":path"] = "/";
+//                                       headers2[":scheme"] = "https";
+//                                       headers2[":authority"] = "gyao.yahoo.co.jp";
+//                                       sendHeadersFrame(ssl, 1, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                       sendHeadersFrame(ssl, 3, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                       sendHeadersFrame(ssl, 5, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                       sendHeadersFrame(ssl, 7, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                       headers2[":method"] = "GET";
+//                                       headers2[":path"] = "/";
+//                                       headers2[":scheme"] = "https";
+//                                       headers2[":authority"] = "gyao.yahoo.co.jp";
+//                                       sendHeadersFrame(ssl, 9, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                      headers2[":authority"] = "auctions.yahoo.co.jp";
+//                                      sendHeadersFrame(ssl, 11, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                      headers2[":authority"] = "finance.yahoo.co.jp";
+//                                      sendHeadersFrame(ssl, 13, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                      headers2[":authority"] = "security.yahoo.co.jp";
+//                                      sendHeadersFrame(ssl, 15, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "shopping.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 17, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "tv.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 19, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "travel.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 21, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "movies.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 23, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "tv.yahoo.co.jp";
+//                                     //headers2[":authority"] = "gyao.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 25, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "transit.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 27, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+//                                     headers2[":authority"] = "fortune.yahoo.co.jp";
+//                                     sendHeadersFrame(ssl, 29, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
 					str_state->setSendHeaders();
 				}
 
@@ -676,7 +714,7 @@ int FrameProcessor::sendGowayFrame(SSL *ssl, const unsigned int last_streamid, c
 	return 0;
 }
 
-int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size){
+int FrameProcessor::sendWindowUpdateFrame(SSL *ssl, unsigned int streamid, const unsigned int increment_size){
 	printf(MAZENDA_BR("\n\n=== Start write Window Update frame === (payload_length=4, flags=0x00, streamid=%d)"), streamid);
 	printf(ORANGE_BR("\twindow_size_increment = %d"), increment_size);
 
@@ -744,15 +782,19 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& 
 
 	int r = 0;
 	int ret = 0;
-	bool b = false;
-	while (1){
+	unsigned char buf[BUF_SIZE] = { 0 }; 
+	unsigned char* tmpbuf = buf; 
 
-		r = SSL_read(ssl, p, BINARY_FRAME_LENGTH);
-//		printf(ORANGE_BR("%%%%% BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x"), p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+	while (payload_length < BINARY_FRAME_LENGTH){
+
+		// 指定した9byteではなく、1byteしか取得できずにSSL_ERROR_NONEに入るケースが存在するのでサイズチェックが必要
+		tmpbuf = buf;
+		r = SSL_read(ssl, tmpbuf, BINARY_FRAME_LENGTH);
+//		printf(ORANGE_BR("%%%%% BINARY_FRAME: %02x %02x %02x %02x %02x %02x %02x %02x %02x, READ_BYTES=%d"), p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], r);
 		ret = SSL_get_error(ssl, r); 
+		memcpy(p + payload_length, tmpbuf, r);	  // 読み込んだサイズ分だけコピーする
 		switch (ret){
 			case SSL_ERROR_NONE:
-				b = true;
 				break;
 			case SSL_ERROR_WANT_READ:
 				continue;
@@ -762,7 +804,11 @@ int FrameProcessor::readFramePayload(SSL* ssl, unsigned char* &p, unsigned int& 
 					return ret;  // TODO: 後で綺麗にする
 				}
 		}
-		if (b) break;
+		payload_length += r;
+	}
+	
+	if( payload_length != 9 ){
+		printf(RED_BR("[ERROR] TOTAL BYTE NOTE MATCH 9"));
 	}
 
 	_to_framedata3byte(p, payload_length);

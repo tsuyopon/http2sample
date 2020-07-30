@@ -54,7 +54,7 @@ public:
 	static int sendDataFrame(SSL *ssl);
 	static int sendHeadersFrame(SSL *ssl, const unsigned int &streamid, const std::map<std::string, std::string> &headers, uint8_t flags);
 	static int sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code);
-	static int sendWindowUpdateFrame(SSL *ssl, unsigned int &streamid, const unsigned int increment_size);
+	static int sendWindowUpdateFrame(SSL *ssl, unsigned int streamid, const unsigned int increment_size);
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);
 	static int writeFrame(SSL* &ssl, unsigned char* data, int &data_length);
 	// read
