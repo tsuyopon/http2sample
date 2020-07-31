@@ -33,19 +33,22 @@ static int alpn_select_cb(SSL *ssl, const unsigned char **out,
     
 	unsigned int protlen = 0;
 	const unsigned char *prot;
-	const char *servalpn = "h2";      // http2であれば受け付けるようにする
-//	const char *servalpn = "http/1.1";      // "http/1.1"であれば受け付けるようにする
+	const char *h2alpn = "h2";      // http2であれば受け付けるようにする
+	const char *h11alpn= "http/1.1";      // "http/1.1"であれば受け付けるようにする
 
 	for (prot = in; prot < in + inlen; prot += protlen) {
 		protlen = *prot++;
 		if (in + inlen < prot + protlen)
 			return SSL_TLSEXT_ERR_NOACK;    // ALPN protocol not selected.
 
-		if (protlen == strlen(servalpn)
-				&& memcmp(prot, servalpn, protlen) == 0) {
-			printf("ALPN callback matched %s\n", servalpn);
+		if (protlen == strlen(h2alpn) && memcmp(prot, h2alpn, protlen) == 0) {
+			printf("ALPN callback matched %s\n", h2alpn);
 			// out, outlenに何も指定しないとSSL_TLSEXT_ERR_NOACK扱いとなるので注意
 			// ここで指定された値がClientHelloに対する応答としてServerHelloメッセージで返されることになる
+			*out = prot;
+			*outlen = protlen;
+			return SSL_TLSEXT_ERR_OK;      // ALPN protocol selected.
+		} else if (protlen == strlen(h11alpn) && memcmp(prot, h11alpn, protlen) == 0) {
 			*out = prot;
 			*outlen = protlen;
 			return SSL_TLSEXT_ERR_OK;      // ALPN protocol selected.
@@ -150,10 +153,7 @@ int main(int argc, char **argv)
 	}
 
 	socklen_t size = sizeof(struct sockaddr_in);
-//	int error = 0;
 	char buf[1024];
-//	char body[] = "hello world";
-//	char header[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: Close\r\n";
 	while(1) {
 
 		printf("accept start...\n");
@@ -176,7 +176,7 @@ int main(int argc, char **argv)
 			unsigned char* alpn_str = static_cast<unsigned char*>(malloc(len+1));
 			if( data == nullptr ){
 				printf("[ERROR] ALPN: protocol is not selected\n");
-			} else {  // FIXME: http1.1も接続できるようにしたい
+			} else if (memcmp(alpn_str, "h2", 2)){
 				memcpy(alpn_str, data, len);
 				alpn_str[len] = '\0';
 				printf("ALPN: protocol selected = %s\n", alpn_str);
@@ -213,6 +213,14 @@ int main(int argc, char **argv)
 					return 0;
 				}
 
+			} else if (memcmp(alpn_str, "http1.1", 7)){
+				char msg[1024];
+				char body[] = "hello world HTTP1.1";
+				char header[] = "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 11\r\nConnection: Close\r\n";
+				snprintf(msg, sizeof(msg), "%s\r\n%s", header, body);
+				SSL_write(ssl, msg, strlen(msg));
+			} else {
+				printf("Unsupported ALPN");
 			}
 			printf("Finished Session\n");
 
@@ -221,7 +229,6 @@ int main(int argc, char **argv)
 		}
 
 		SSL_shutdown(ssl);
-//		int sd = SSL_get_fd(ssl);
 		SSL_free(ssl);
 	}
 
