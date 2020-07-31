@@ -176,6 +176,11 @@ int Hpack::readHpackHeaders(unsigned int payload_length, unsigned char* p){
 //					printf("%s => %s\n", tmpbegin->first.c_str(), tmpbegin->second.c_str());
 //				}
 
+				// 7bit全てが1のケースについては、すぐにハンドリングできるようにエラー検知しておくようにする。
+				if( key_index >= 127 ){
+					printf(RED_BR("[ERROR] handle Indexed Header Field Representation over 127 case\n"));
+				}
+
 				auto begin = g_dynamic_table_.at(key_index - DYNAMIC_TABLE_OFFSET -1).begin();
 				printf(ORANGE_BR("Indexed Header Field Representation: dynamic index=%d [%s => %s]"), key_index, begin->first.c_str(), begin->second.c_str());
 //				std::cout << begin->first << " : " << begin->second << std::endl;
