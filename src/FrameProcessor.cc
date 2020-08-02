@@ -6,12 +6,19 @@
 #include "Hpack.h"
 
 #include <list>
+#include <map>
+#include <vector>
 #include <string.h>
 #include <arpa/inet.h>
 
+int FrameProcessor::readFrameLoopServer(ConnectionState* con_state, SSL* ssl){
+	std::vector<std::map<std::string, std::string>> headermap;
+	return FrameProcessor::readFrameLoop(con_state, ssl, headermap);
+}
+
 // 読み込んだフレームに応じて、実行する処理を分岐するメインロジック
 // serverとclientから利用できるようにフラグをもつ
-int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers){
+int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::vector<std::map<std::string, std::string>> headermap){
 
 	unsigned char buf[BUF_SIZE] = {0};
 	unsigned char* p = buf;
@@ -173,63 +180,15 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 			// FIXME: 一時的フラグ
 			tmpflag = 1;
 
-			// DELETE lator
-			std::map<std::string, std::string> headers;
-			headers[":method"] = "GET";
-			headers[":path"] = "/";
-			headers[":scheme"] = "https";
-			headers[":authority"] = "gyao.yahoo.co.jp";
-			
-			StreamState* str_state;
-			con_state->createStream(str_state);
-			sendHeadersFrame(str_state, ssl, str_state->getStreamId(), headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-
-			std::map<std::string, std::string> headers2;
-			headers2[":method"] = "GET";
-			headers2[":path"] = "/";
-			headers2[":scheme"] = "https";
-			headers2[":authority"] = "www.yahoo.co.jp";
-			StreamState* str_state2;
-			con_state->createStream(str_state2);
-			sendHeadersFrame(str_state2, ssl, str_state2->getStreamId(), headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-
-			std::map<std::string, std::string> headers3;
-			headers3[":method"] = "GET";
-			headers3[":path"] = "/";
-			headers3[":scheme"] = "https";
-			headers3[":authority"] = "www.yahoo.co.jp";
-			StreamState* str_state3;
-			con_state->createStream(str_state3);
-			sendHeadersFrame(str_state3, ssl, str_state3->getStreamId(), headers3, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                       sendHeadersFrame(str_state, ssl, 3, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                       sendHeadersFrame(str_state, ssl, 5, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                       sendHeadersFrame(str_state, ssl, 7, headers, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                       headers2[":method"] = "GET";
-//                                       headers2[":path"] = "/";
-//                                       headers2[":scheme"] = "https";
-//                                       headers2[":authority"] = "gyao.yahoo.co.jp";
-//                                       sendHeadersFrame(str_state, ssl, 9, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                      headers2[":authority"] = "auctions.yahoo.co.jp";
-//                                      sendHeadersFrame(str_state, ssl, 11, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                      headers2[":authority"] = "finance.yahoo.co.jp";
-//                                      sendHeadersFrame(str_state, ssl, 13, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                      headers2[":authority"] = "security.yahoo.co.jp";
-//                                      sendHeadersFrame(str_state, ssl, 15, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "shopping.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 17, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "tv.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 19, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "travel.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 21, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "movies.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 23, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "tv.yahoo.co.jp";
-//                                     //headers2[":authority"] = "gyao.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 25, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "transit.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 27, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
-//                                     headers2[":authority"] = "fortune.yahoo.co.jp";
-//                                     sendHeadersFrame(str_state, ssl, 29, headers2, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+			for (auto it= headermap.begin(); it != headermap.end(); ++it) {
+// for debug
+//				 for( auto i = (*it).begin(); i != (*it).end() ; ++i ) {
+//					printf("%s => %s\n", i->first.c_str(), i->second.c_str());
+//				}
+				StreamState* str_state;
+				con_state->createStream(str_state);
+				sendHeadersFrame(str_state, ssl, str_state->getStreamId(), *it, FLAGS_END_STREAM|FLAGS_END_HEADERS);
+			}
 		}
 
 		if( streamid != 0 ){
@@ -249,7 +208,6 @@ int FrameProcessor::readFrameLoop(ConnectionState* con_state, SSL* ssl, const st
 
 	return 0;  // FIXME
 }
-
 
 int FrameProcessor::_rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length){
 	printf(CYAN_BR("=== PING Frame Recieved === (length=%d, streamid=%d)"), payload_length, streamid);

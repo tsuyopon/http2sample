@@ -18,6 +18,7 @@
 
 #include <string>
 #include <map>
+#include <vector>
 #include <iostream>
 
 #include <sys/types.h>
@@ -142,6 +143,31 @@ int main(int argc, char **argv)
 		std::cout << i->first << " " << i->second << "\n";
 	}
 	std::cout << "===== REQUEST INFORMATION END =====" << std::endl;
+
+	std::vector<std::map<std::string, std::string>> headermap;
+	headermap.push_back(headers);
+
+	// Test
+	std::map<std::string, std::string> headers1;
+	headers1[":method"] = "GET";
+	headers1[":path"] = "/";
+	headers1[":scheme"] = "https";
+	headers1[":authority"] = "gyao.yahoo.co.jp";
+	headermap.push_back(headers1);
+
+	std::map<std::string, std::string> headers2;
+	headers2[":method"] = "GET";
+	headers2[":path"] = "/";
+	headers2[":scheme"] = "https";
+	headers2[":authority"] = "auctions.yahoo.co.jp";
+	headermap.push_back(headers2);
+
+	std::map<std::string, std::string> headers3;
+	headers3[":method"] = "GET";
+	headers3[":path"] = "/";
+	headers3[":scheme"] = "https";
+	headers3[":authority"] = "finance.yahoo.co.jp";
+	headermap.push_back(headers3);
 
 	//------------------------------------------------------------
 	// シグナルの登録
@@ -280,7 +306,7 @@ int main(int argc, char **argv)
 
 	// メインループ
 	int loop_return;
-	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headers);
+	loop_return = FrameProcessor::readFrameLoop(con_state, _ssl, headermap);
 	// After receiving a RST_STREAM on a stream, the receiver MUST NOT send additional frames for that stream, with the exception of PRIORITY. 
 	if (loop_return == static_cast<int>(FrameType::RST_STREAM)){
 		printf(CYAN_BR("=== RST_STREAM Recieved"));

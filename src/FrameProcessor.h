@@ -46,7 +46,8 @@ enum SettingsId : uint16_t
 
 class FrameProcessor {
 public:
-	static int readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::map<std::string, std::string> &headers);
+	static int readFrameLoopServer(ConnectionState* con_state, SSL* ssl);
+	static int readFrameLoop(ConnectionState* con_state, SSL* ssl, const std::vector<std::map<std::string, std::string>> headermap);
 	// write
 	static unsigned char* createFramePayload(unsigned int length, char type, char flags, unsigned int streamid);
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
