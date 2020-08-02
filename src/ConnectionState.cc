@@ -1,9 +1,11 @@
+#include "StreamState.h"
 #include "ConnectionState.h"
 
 ConnectionState::ConnectionState(bool isServer): manage_streamid_(0), is_server_(isServer)  {
 
 	// FIXME: 初期化子リストへあとで変更する
 	send_initial_frames_ = false;
+	first_settings_frame_ = false;
 	max_create_streamid_ = 0;
 	concurrent_num_ = 0;
 
@@ -41,8 +43,20 @@ void ConnectionState::set_send_initial_frames(){
 	send_initial_frames_ = true;
 }
 
+unsigned int ConnectionState::get_concurrent_num() const {
+	return concurrent_num_;
+}
+
 unsigned int ConnectionState::get_manage_streamid() const {
 	return manage_streamid_;
+}
+
+void ConnectionState::set_first_settings_frame() {
+	first_settings_frame_ = true;
+}
+
+bool ConnectionState::get_first_settings_frame() const {
+	return first_settings_frame_;
 }
 
 bool ConnectionState::get_is_server() const {
@@ -139,3 +153,55 @@ bool ConnectionState::incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const uns
 	return false;
 }
 
+// ConnectionStateからStreamStateインスタンス生成を管理する
+bool ConnectionState::createStream(StreamState* &str_state) {
+	// TODO: MAC_CONNCURRENTを超過していたらfalseを返す
+	// idはget_next_streamid()を使って自動的にインクリメント
+	// 管理用プールに登録する
+	// 実行中のストリーム数をインクリメントする
+	// StreamStateインスタンスを返却する
+
+	// FIXME: 31bitなのでintの方が適切かも(全体に影響するので後回し)
+	unsigned int streamid;
+	streamid = get_next_streamid();
+//	printf("streamid = %d\n", streamid);
+	str_state  = new StreamState(streamid);  // FIXME: deleteかけ
+	stream_pool_[streamid] = str_state;
+	concurrent_num_++;
+//	printf("createStream addr=%p\n", stream_pool_[streamid]);
+	return true;
+}
+
+bool ConnectionState::createStreamById(unsigned int streamid, StreamState* &str_state) {
+
+	// FIXME: 31bitなのでintの方が適切かも(全体に影響するので後回し)
+//	printf("streamid = %d\n", streamid);
+	str_state  = new StreamState(streamid);  // FIXME: deleteかけ
+	stream_pool_[streamid] = str_state;
+	concurrent_num_++;
+//	printf("createStream addr=%p\n", stream_pool_[streamid]);
+	return true;
+}
+
+
+// フレーム受信したらstreamidからStreamStateインスタンスを取得する。
+bool ConnectionState::findStreamByStreamId(unsigned int streamid, StreamState* &str_stream) {
+
+	// streamid=0はStreamStateを持たないのでfalseを応答する
+	if( streamid == 0 ){
+		return false;
+	}
+
+	// TODO:存在しないstreamidも扱う必要がある
+
+	// streamidからStreamStateインスタンスを返却する
+	str_stream = stream_pool_[streamid];
+	printf("streamid=%d, get addr=%p\n", streamid, str_stream);
+	return true;
+}
+
+bool ConnectionState::deleteStream(unsigned int streamid){
+	// DELETEを追加する
+	stream_pool_.erase(streamid);   // FIXME* streamidのチェック 
+	concurrent_num_--;
+}

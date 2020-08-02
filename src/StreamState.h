@@ -33,8 +33,8 @@ private:
 //	std::map<std::string, std::string> response_headers_;
 //
 //	// flags related StreamState
-//	bool sendPP_;    // PP: PUSH_PROMISE
-//	bool recvPP_;
+	bool sendPP_;    // PP: PUSH_PROMISE
+	bool recvPP_;
 	bool sendH_;     // H: HEADER
 	bool recvH_;
 	bool sendEH_;    // EH: END_HEADER flags
@@ -43,6 +43,8 @@ private:
 	bool recvES_;
 	bool sendRS_;    // RS: RST_SRREAM flags
 	bool recvRS_;
+
+	Http2State current_state_;
 
 //
 //	// state
@@ -81,5 +83,6 @@ public:
 	unsigned int getHeaderBufferSize() const;
 	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);
 	bool checkPeerHeadersRecieved() const;
+	Http2State getStreamStatus() const;
 
 }; 

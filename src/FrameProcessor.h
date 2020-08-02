@@ -52,7 +52,7 @@ public:
 	static int sendSettingsFrame(SSL *ssl, std::map<uint16_t, uint32_t>& setmap);
 	static int sendSettingsAck(SSL *ssl);
 	static int sendDataFrame(SSL *ssl);
-	static int sendHeadersFrame(SSL *ssl, const unsigned int &streamid, const std::map<std::string, std::string> &headers, uint8_t flags);
+	static int sendHeadersFrame(StreamState* str_state, SSL *ssl, const unsigned int &streamid, const std::map<std::string, std::string> &headers, uint8_t flags);
 	static int sendGowayFrame(SSL *ssl, const unsigned int last_streamid, const unsigned int error_code);
 	static int sendWindowUpdateFrame(SSL *ssl, unsigned int streamid, const unsigned int increment_size);
 	static int sendRstStreamFrame(SSL *ssl, unsigned int &streamid, unsigned int error_code);
@@ -73,7 +73,7 @@ private:
 	static void _to_framestreamid(unsigned char * &p, unsigned int& streamid);
 	// 必要最小限の引数だけを追加
 	static int _rcv_ping_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length);
-	static int _rcv_data_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
+	static int _rcv_data_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
 	static int _rcv_headers_frame(StreamState* str_state, SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned int flags, unsigned char* &p);
 	static void _rcv_priority_frame(SSL* ssl, unsigned int &payload_length);
 	static int _rcv_rst_stream_frame(SSL* ssl, unsigned int &streamid, unsigned int &payload_length, unsigned char* &p);

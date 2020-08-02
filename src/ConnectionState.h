@@ -3,6 +3,9 @@
 #include <map>
 #include "FrameProcessor.h"
 
+
+class StreamState;
+
 // コネクションに関連するデータを管理するクラス
 // (host, port)ペア毎に1つ生成される。
 class ConnectionState {
@@ -11,9 +14,18 @@ public:
 
 	// manage
 	void set_send_initial_frames();
+	unsigned int get_concurrent_num() const;
 	unsigned int get_manage_streamid() const;
+	void set_first_settings_frame();
+	bool get_first_settings_frame() const;
 	bool get_is_server() const;
 	unsigned int get_next_streamid();
+
+	// stream manage
+	bool createStream(StreamState* &str_state);
+	bool createStreamById(unsigned int streamid, StreamState* &str_state);
+	bool findStreamByStreamId(unsigned int streamid, StreamState* &str_stream);
+	bool deleteStream(unsigned int streamid);
 
 	// my settings
 	void set_header_table_size_(unsigned int table_size);
@@ -35,9 +47,13 @@ public:
 	unsigned int get_peer_consumer_data_bytes() const;
 	bool incrementPeerPayloadAndCheckWindowUpdateIsNeeded(const unsigned int &payload_length);
 
+
 private:
+	std::map<int, StreamState*> stream_pool_;
+
 	/* manage*/
 	const unsigned int manage_streamid_;
+	bool first_settings_frame_;
 	bool is_server_;  // FIXME: あとでenumへ変更
 	bool send_initial_frames_;
 	unsigned int max_create_streamid_;
