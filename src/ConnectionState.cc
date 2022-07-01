@@ -200,7 +200,7 @@ bool ConnectionState::findStreamByStreamId(unsigned int streamid, StreamState* &
 	return true;
 }
 
-bool ConnectionState::deleteStream(unsigned int streamid){
+void ConnectionState::deleteStream(unsigned int streamid){
 	// DELETEを追加する
 	stream_pool_.erase(streamid);   // FIXME* streamidのチェック 
 	concurrent_num_--;

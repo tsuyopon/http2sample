@@ -25,7 +25,7 @@ public:
 	bool createStream(StreamState* &str_state);
 	bool createStreamById(unsigned int streamid, StreamState* &str_state);
 	bool findStreamByStreamId(unsigned int streamid, StreamState* &str_stream);
-	bool deleteStream(unsigned int streamid);
+	void deleteStream(unsigned int streamid);
 
 	// my settings
 	void set_header_table_size_(unsigned int table_size);

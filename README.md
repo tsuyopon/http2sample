@@ -56,8 +56,15 @@ $ ./http2client -u https://example.com/hoge/fuga/piyo -H 'hoge:fuga'
 
 
 ### Server Program
+kick http2 server program
 ```
-$ ./http2server
+$ sudo ./http2server
+```
+
+http2client program can connect to http2server.
+```
+(example)
+$ ./http2client -u https://localhost/ -H 'hoge:fuga'
 ```
 
 # Note
